@@ -1,0 +1,58 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Environment variables — never commit
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Jupyter (archived, not needed)
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AWS
+.aws/
+
+# Model files (too large — stored in S3 / HuggingFace)
+*.bin
+*.pt
+*.pth
+*.safetensors
+Final/my-finbert-finetuned.zip
+
+# Logs
+*.log
+logs/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Charts output (generated at runtime)
+charts/
+
+# Paper trading logs (generated at runtime)
+paper_trading_logs/
+archive/
