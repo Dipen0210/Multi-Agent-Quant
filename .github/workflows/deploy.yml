@@ -1,0 +1,81 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION:    ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY:  ${{ secrets.ECR_REGISTRY }}
+  ECR_REPO:      quantsentiment
+  IMAGE_TAG:     ${{ github.sha }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install --no-cache-dir -r requirements.txt
+      - name: Smoke test imports
+        run: python -c "from api.main import app; print('imports ok')"
+
+  build-push:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.build.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create ECR repo if missing
+        run: |
+          aws ecr describe-repositories --repository-names $ECR_REPO \
+            || aws ecr create-repository --repository-name $ECR_REPO
+
+      - name: Build & push Docker image
+        id: build
+        run: |
+          IMAGE="${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            IMAGE="${{ needs.build-push.outputs.image }}"
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+              | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            docker pull "$IMAGE"
+            docker stop quantsentiment 2>/dev/null || true
+            docker rm   quantsentiment 2>/dev/null || true
+            docker run -d \
+              --name quantsentiment \
+              --restart unless-stopped \
+              -p 127.0.0.1:8000:8000 \
+              --env-file ~/quantsentiment.env \
+              "$IMAGE"
+            sudo nginx -s reload
+            echo "Deployed $IMAGE"
