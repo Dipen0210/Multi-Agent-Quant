@@ -1,0 +1,38 @@
+[
+  {
+    "Name": "quantsentiment-nightly-news",
+    "Description": "Trigger nightly news ingestion at 11pm UTC daily",
+    "ScheduleExpression": "cron(0 23 * * ? *)",
+    "State": "ENABLED",
+    "Targets": [
+      {
+        "Id": "NewsLambdaTarget",
+        "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:quantsentiment-news-ingestion"
+      }
+    ]
+  },
+  {
+    "Name": "quantsentiment-weekly-sec",
+    "Description": "Trigger weekly SEC filings ingestion at 6am UTC Sunday",
+    "ScheduleExpression": "cron(0 6 ? * SUN *)",
+    "State": "ENABLED",
+    "Targets": [
+      {
+        "Id": "SecLambdaTarget",
+        "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:quantsentiment-sec-ingestion"
+      }
+    ]
+  },
+  {
+    "Name": "quantsentiment-portfolio-tracker",
+    "Description": "Track Alpaca paper portfolio every 15min during US market hours (Mon-Fri)",
+    "ScheduleExpression": "cron(0/15 13-20 ? * MON-FRI *)",
+    "State": "ENABLED",
+    "Targets": [
+      {
+        "Id": "PortfolioLambdaTarget",
+        "Arn": "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:quantsentiment-portfolio-tracker"
+      }
+    ]
+  }
+]
