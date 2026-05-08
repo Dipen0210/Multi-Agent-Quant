@@ -7,23 +7,30 @@ from agent.schemas import NewsAnalystOutput
 STACK = os.getenv("STACK", "free")
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 def score_headlines(headlines: list[str]) -> dict:
     """
     Score headlines using FinBERT.
     Routes to HuggingFace Spaces (free) or SageMaker (upgrade).
+    Falls back to neutral if neither is configured.
     Returns raw {results, aggregate} dict.
     """
+    neutral = {"results": [], "aggregate": {"label": "neutral", "score": 0.5,
+                                             "headline_count": len(headlines), "breakdown": {}}}
     if not headlines:
-        return {"results": [], "aggregate": {"label": "neutral", "score": 0.5,
-                                              "headline_count": 0, "breakdown": {}}}
-    if STACK == "bedrock":
-        return _score_sagemaker(headlines)
-    return _score_hf_spaces(headlines)
+        return {**neutral, "aggregate": {**neutral["aggregate"], "headline_count": 0}}
+    try:
+        if STACK == "bedrock":
+            return _score_sagemaker(headlines)
+        return _score_hf_spaces(headlines)
+    except Exception:
+        return neutral
 
 
 def _score_hf_spaces(headlines: list[str]) -> dict:
-    url = os.getenv("HF_SPACES_URL", "").rstrip("/") + "/api/predict"
+    base = os.getenv("HF_SPACES_URL", "").split("#")[0].strip()
+    if not base.startswith("http"):
+        raise ValueError("HF_SPACES_URL not configured")
+    url = base.rstrip("/") + "/api/predict"
     payload = {"data": [json.dumps(headlines)]}
     response = httpx.post(url, json=payload, timeout=30)
     response.raise_for_status()

@@ -16,7 +16,7 @@ def get_llm():
         )
     from langchain_groq import ChatGroq
     return ChatGroq(
-        model="llama-3.1-70b-versatile",
+        model="llama-3.3-70b-versatile",
         api_key=os.getenv("GROQ_API_KEY"),
         temperature=0.0,
     )
@@ -31,10 +31,9 @@ def get_vision_llm():
             model_id=os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
             region_name=os.getenv("AWS_REGION", "us-east-1"),
         )
-    # Groq vision: llama-3.2-11b-vision-preview
     from langchain_groq import ChatGroq
     return ChatGroq(
-        model="llama-3.2-11b-vision-preview",
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
         api_key=os.getenv("GROQ_API_KEY"),
         temperature=0.0,
     )
