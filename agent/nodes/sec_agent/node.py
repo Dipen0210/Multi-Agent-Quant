@@ -1,8 +1,11 @@
+from datetime import datetime, timedelta, timezone
 from langchain_core.messages import AIMessage
 from agent.state import AgentState
 from agent.schemas import SECFilingOutput
 from agent.tools.sec_edgar_tool import fetch_recent_filings
 from agent.tools.keywords import extract_keywords, score_to_decision, score_to_label
+
+_RECENT_DAYS = 30  # only consider filings from the last 30 days
 
 _BULLISH = {"growth","beat","exceeded","raised","record","strong","positive","increased","acceleration"}
 _BEARISH = {"decline","loss","impairment","risk","litigation","investigation","miss","reduced","headwind","uncertain"}
@@ -22,9 +25,17 @@ def sec_node(state: AgentState) -> dict:
     ticker = state["ticker"]
 
     try:
-        filings = fetch_recent_filings(ticker, form_types=["10-Q", "10-K", "8-K"], count=3)
+        filings = fetch_recent_filings(ticker, form_types=["10-Q", "10-K", "8-K"], count=5)
     except Exception:
         filings = []
+
+    # Filter to only recent filings (last 30 days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=_RECENT_DAYS)
+    recent = [
+        f for f in filings
+        if f.get("date") and datetime.fromisoformat(f["date"].replace("Z","")).replace(tzinfo=timezone.utc) >= cutoff
+    ] if filings else []
+    filings = recent if recent else filings[:1]  # fallback to most recent if none in window
 
     if not filings:
         output = SECFilingOutput(

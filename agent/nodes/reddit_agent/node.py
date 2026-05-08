@@ -13,7 +13,7 @@ def _fetch_reddit_posts(ticker: str, limit: int = 20) -> list[str]:
     url = (
         f"https://www.reddit.com/search.json"
         f"?q={ticker}&subreddit={_SUBREDDITS}"
-        f"&sort=new&t=week&limit={limit}"
+        f"&sort=new&t=day&limit={limit}"
     )
     try:
         resp = httpx.get(url, headers=_HEADERS, timeout=10, follow_redirects=True)

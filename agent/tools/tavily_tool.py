@@ -14,17 +14,18 @@ def _get_client() -> TavilyClient:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
-def fetch_news(ticker: str, days: int = 2) -> list[dict]:
+def fetch_news(ticker: str, days: int = 1) -> list[dict]:
     """
-    Fetch recent news headlines for a ticker.
+    Fetch TODAY's news headlines for a ticker (always last 24h).
     Returns list of {title, url, content, published_date}.
     """
-    since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+    today = datetime.utcnow().strftime("%Y-%m-%d")
     results = _get_client().search(
-        query=f"{ticker} stock news earnings",
+        query=f"{ticker} stock news today {today}",
         search_depth="basic",
         max_results=10,
         include_answer=False,
+        days=1,
     )
     articles = []
     for r in results.get("results", []):
