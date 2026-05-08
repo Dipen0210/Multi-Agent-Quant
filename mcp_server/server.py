@@ -1,99 +1,53 @@
 """
-QuantSentiment MCP Server
+QuantSentiment MCP Server — FastMCP edition (MCP SDK 1.x)
 
-Exposes the multi-agent analysis system as MCP tools so Claude Desktop
-(or any MCP client) can call them directly in conversation.
-
-Usage:
-    python -m mcp_server.server          # stdio transport (Claude Desktop)
-    python mcp_server/server.py          # same
-
-Add to Claude Desktop config (~/.claude/claude_desktop_config.json):
+Claude Desktop config (~/.claude/claude_desktop_config.json):
     {
       "mcpServers": {
         "quantsentiment": {
-          "command": "python",
+          "command": "/Users/dipen/Projects/QuantSentiment/venv/bin/python",
           "args": ["-m", "mcp_server.server"],
-          "cwd": "/path/to/QuantSentiment",
+          "cwd": "/Users/dipen/Projects/QuantSentiment",
           "env": { "API_BASE_URL": "http://localhost:8000" }
         }
       }
     }
 """
-import inspect
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp import types
+from mcp.server.fastmcp import FastMCP
 import mcp_server.tools as qt
 
-
-app = Server("quantsentiment")
-
-_TOOLS = [qt.analyze_ticker, qt.get_portfolio, qt.health_check]
+mcp = FastMCP("quantsentiment")
 
 
-def _build_schema(fn) -> dict:
-    sig = inspect.signature(fn)
-    props = {}
-    required = []
-    for name, param in sig.parameters.items():
-        annotation = param.annotation
-        if annotation is inspect.Parameter.empty:
-            ptype = "string"
-        elif annotation is int:
-            ptype = "integer"
-        else:
-            ptype = "string"
+@mcp.tool()
+def analyze_ticker(ticker: str, days: int = 2) -> str:
+    """
+    Run the full 6-agent QuantSentiment analysis on a stock ticker.
+    Returns signal (BUY/SELL/HOLD), confidence, and full reasoning from
+    News Analyst, Technical Analyst, Macro Context, Risk Manager,
+    Portfolio Manager, and Critic agents.
 
-        props[name] = {"type": ptype}
-
-        doc = inspect.getdoc(fn) or ""
-        for line in doc.splitlines():
-            line = line.strip()
-            if line.startswith(f"{name}:"):
-                props[name]["description"] = line[len(name) + 1:].strip()
-
-        if param.default is inspect.Parameter.empty:
-            required.append(name)
-        else:
-            props[name]["default"] = param.default
-
-    schema = {"type": "object", "properties": props}
-    if required:
-        schema["required"] = required
-    return schema
+    Args:
+        ticker: Stock symbol e.g. NVDA, AAPL, TSLA, NFLX
+        days:   Lookback window for news in days (1-7, default 2)
+    """
+    return qt.analyze_ticker(ticker, days)
 
 
-@app.list_tools()
-async def list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name=fn.__name__,
-            description=(inspect.getdoc(fn) or "").splitlines()[0],
-            inputSchema=_build_schema(fn),
-        )
-        for fn in _TOOLS
-    ]
+@mcp.tool()
+def get_portfolio() -> str:
+    """
+    Return current Alpaca paper trading positions and account P&L.
+    Shows live account balance, open positions, and unrealised gains.
+    """
+    return qt.get_portfolio()
 
 
-@app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    fn_map = {fn.__name__: fn for fn in _TOOLS}
-    if name not in fn_map:
-        raise ValueError(f"Unknown tool: {name}")
-    result = fn_map[name](**arguments)
-    return [types.TextContent(type="text", text=result)]
-
-
-async def _run():
-    async with stdio_server() as (read_stream, write_stream):
-        await app.run(read_stream, write_stream, app.create_initialization_options())
-
-
-def main():
-    import asyncio
-    asyncio.run(_run())
+@mcp.tool()
+def health_check() -> str:
+    """Check whether the QuantSentiment API server is running."""
+    return qt.health_check()
 
 
 if __name__ == "__main__":
-    main()
+    mcp.run(transport="stdio")
