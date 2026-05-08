@@ -8,7 +8,7 @@ class AnalysisRequest(BaseModel):
     days: int = Field(default=2, description="Days of news to fetch")
 
 
-# ── News Analyst ───────────────────────────────────────────────────────────────
+# ── News sub-agents ────────────────────────────────────────────────────────────
 
 class HeadlineResult(BaseModel):
     text: str
@@ -23,7 +23,50 @@ class SimilarEvent(BaseModel):
     outcome: str
 
 
-class NewsAnalystOutput(BaseModel):
+class FinancialNewsOutput(BaseModel):
+    decision: str                        # bullish | bearish | neutral
+    sentiment_label: str
+    sentiment_score: float
+    headline_count: int
+    headlines: list[str]
+    keywords: list[str]
+    reasoning: str
+
+
+class RedditSentimentOutput(BaseModel):
+    decision: str
+    sentiment_label: str
+    sentiment_score: float
+    post_count: int
+    top_posts: list[str]
+    keywords: list[str]
+    reasoning: str
+
+
+class SECFilingOutput(BaseModel):
+    decision: str
+    sentiment_label: str
+    sentiment_score: float
+    filing_type: str
+    key_findings: list[str]
+    keywords: list[str]
+    reasoning: str
+
+
+class AnalystRatingsOutput(BaseModel):
+    decision: str
+    recommendation: str
+    sentiment_score: float
+    target_price: float
+    current_price: float
+    upside_pct: float
+    analyst_count: int
+    keywords: list[str]
+    reasoning: str
+
+
+class NewsAggregatorOutput(BaseModel):
+    # Backward-compatible fields (used by Risk Manager etc.)
     sentiment_label: str
     sentiment_score: float
     headline_count: int
@@ -31,6 +74,19 @@ class NewsAnalystOutput(BaseModel):
     headlines: list[str]
     similar_past_events: list[SimilarEvent] = []
     sec_context: str = ""
+
+    # Individual source outputs
+    financial_news: Optional[FinancialNewsOutput] = None
+    reddit: Optional[RedditSentimentOutput] = None
+    sec_filing: Optional[SECFilingOutput] = None
+    analyst_ratings: Optional[AnalystRatingsOutput] = None
+
+    # Aggregated
+    source_agreement: str = "mixed"      # all_bullish | mostly_bullish | mixed | mostly_bearish | all_bearish
+
+
+# Legacy alias kept so old imports don't break
+NewsAnalystOutput = NewsAggregatorOutput
 
 
 # ── Technical Analyst ──────────────────────────────────────────────────────────
@@ -104,7 +160,7 @@ class AgentResponse(BaseModel):
     ticker: str
     signal: str
     confidence: float
-    news_analyst: Optional[NewsAnalystOutput] = None
+    news_analyst: Optional[NewsAggregatorOutput] = None
     technical_analyst: Optional[TechnicalAnalystOutput] = None
     macro_context: Optional[MacroContextOutput] = None
     risk_manager: Optional[RiskDecision] = None

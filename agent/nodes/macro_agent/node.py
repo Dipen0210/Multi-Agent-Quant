@@ -5,7 +5,6 @@ from agent.tools.yfinance_tool import get_macro_data
 
 def macro_agent_node(state: AgentState) -> dict:
     output = get_macro_data()
-
     return {
         "macro_context": output,
         "messages": [AIMessage(

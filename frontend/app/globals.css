@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #020617;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.4); }
+  50%       { box-shadow: 0 0 20px 6px rgba(59, 130, 246, 0.7); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: scaleY(0.95); }
+  to   { opacity: 1; transform: scaleY(1); }
+}
+
+.node-running {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+.fade-in-up {
+  animation: fade-in-up 0.4s ease forwards;
+}
+
+.slide-in {
+  animation: slide-in 0.5s ease forwards;
+}
+
+.connector-v {
+  width: 2px;
+  background: linear-gradient(to bottom, #334155, #475569);
+  margin: 0 auto;
+}
+
+.connector-h {
+  height: 2px;
+  background: linear-gradient(to right, #334155, #475569);
+}
+
+.connector-v-active {
+  background: linear-gradient(to bottom, #22c55e, #16a34a);
+}
+
+.connector-h-active {
+  background: linear-gradient(to right, #22c55e, #16a34a);
+}
