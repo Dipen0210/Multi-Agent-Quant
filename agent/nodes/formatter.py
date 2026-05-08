@@ -6,11 +6,9 @@ from agent.schemas import AgentResponse
 
 
 def formatter_node(state: AgentState) -> dict:
-    """Assemble all agent outputs into the final AgentResponse."""
-    elapsed = int(time.time() * 1000) - state.get("start_time_ms", 0)
-
+    elapsed   = int(time.time() * 1000) - state.get("start_time_ms", 0)
     portfolio = state.get("portfolio_signal")
-    signal     = portfolio.signal     if portfolio else "HOLD"
+    signal    = portfolio.signal     if portfolio else "HOLD"
     confidence = portfolio.confidence if portfolio else 0.0
 
     response = AgentResponse(
@@ -30,7 +28,5 @@ def formatter_node(state: AgentState) -> dict:
     )
 
     return {
-        "messages": [AIMessage(content=f"Done — {signal} @ confidence {confidence:.2f} ({elapsed}ms)")],
-        # Store serialised response in messages for API layer to extract
         "messages": [AIMessage(content=response.model_dump_json())],
     }
