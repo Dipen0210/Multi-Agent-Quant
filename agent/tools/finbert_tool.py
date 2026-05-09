@@ -9,9 +9,7 @@ _lock = threading.Lock()
 _pipeline_instance = None
 
 
-_MODEL_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "huggingface", "my-finbert-finetuned"
-)
+_HF_MODEL = os.getenv("FINBERT_MODEL", "Dipen0210/finbert-finetuned")
 
 
 def _get_pipeline():
@@ -20,10 +18,9 @@ def _get_pipeline():
         with _lock:
             if _pipeline_instance is None:
                 from transformers import pipeline
-                model = os.path.abspath(_MODEL_PATH)
                 _pipeline_instance = pipeline(
                     "text-classification",
-                    model=model,
+                    model=_HF_MODEL,
                     top_k=None,
                     device=-1,  # CPU
                 )
