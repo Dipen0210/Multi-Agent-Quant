@@ -8,7 +8,7 @@ A production-grade multi-agent AI system that analyses stock sentiment from 5 in
 
 ```
                         ┌─────────────────────────────────────┐
-                        │              ROUTER                  │
+                        │              ROUTER                 │
                         └──────────────┬──────────────────────┘
                                        │ (parallel fan-out)
           ┌──────────────┬─────────────┼──────────────┬──────────────┐
