@@ -34,6 +34,19 @@ def get_portfolio() -> str:
     return json.dumps(resp.json(), indent=2)
 
 
+def get_analytics(period: str = "1M") -> str:
+    """
+    Return portfolio analytics — equity history, open positions, trade history,
+    win rate, total return, and Sharpe metrics from Alpaca paper trading.
+
+    Args:
+        period: Time period for equity chart — '1W', '1M', or '3M' (default '1M')
+    """
+    resp = _client.get(f"{BASE_URL}/analytics", params={"period": period})
+    resp.raise_for_status()
+    return json.dumps(resp.json(), indent=2)
+
+
 def health_check() -> str:
     """Check whether the QuantSentiment API server is running."""
     resp = _client.get(f"{BASE_URL}/health")

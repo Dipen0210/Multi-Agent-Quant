@@ -44,6 +44,18 @@ def get_portfolio() -> str:
 
 
 @mcp.tool()
+def get_analytics(period: str = "1M") -> str:
+    """
+    Return portfolio analytics from Alpaca paper trading.
+    Shows equity history, open positions, trade history, win rate and total return.
+
+    Args:
+        period: '1W', '1M', or '3M' (default 1M)
+    """
+    return qt.get_analytics(period)
+
+
+@mcp.tool()
 def health_check() -> str:
     """Check whether the QuantSentiment API server is running."""
     return qt.health_check()
