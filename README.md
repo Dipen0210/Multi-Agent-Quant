@@ -209,7 +209,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ## Portfolio Analytics
 
-Visit `/analytics` for a Robinhood-style dashboard:
+Visit `/analytics` for dashboard:
 - Portfolio equity chart (1W / 1M / 3M)
 - Open positions with unrealized P&L
 - Trade history with BUY/SELL tags
