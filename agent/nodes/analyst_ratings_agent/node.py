@@ -3,9 +3,9 @@ from langchain_core.messages import AIMessage
 from agent.state import AgentState
 from agent.schemas import AnalystRatingsOutput
 
-_SCORE = {
-    "strong_buy":   0.90,
-    "buy":          0.72,
+_BASE_SCORE = {
+    "strong_buy":   0.85,
+    "buy":          0.65,
     "hold":         0.50,
     "underperform": 0.30,
     "sell":         0.15,
@@ -17,6 +17,26 @@ _DECISION = {
     "underperform": "bearish",
     "sell":         "bearish",
 }
+
+
+def _adjusted_score(rec: str, upside_pct: float) -> tuple[float, str]:
+    """
+    Adjust analyst score by upside potential.
+    A 'buy' with <5% upside is effectively neutral — already priced in.
+    A 'strong_buy' with >20% upside is genuinely bullish.
+    """
+    base = _BASE_SCORE.get(rec, 0.5)
+    decision = _DECISION.get(rec, "neutral")
+
+    if rec in ("buy", "strong_buy"):
+        if upside_pct < 5:
+            # Stock already at/above target — barely bullish
+            return round(min(base, 0.55), 3), "neutral"
+        elif upside_pct < 10:
+            return round(base - 0.10, 3), decision
+        elif upside_pct >= 20:
+            return round(min(base + 0.05, 0.95), 3), decision
+    return base, decision
 
 
 def analyst_ratings_node(state: AgentState) -> dict:
@@ -33,8 +53,7 @@ def analyst_ratings_node(state: AgentState) -> dict:
     analyst_count = int(info.get("numberOfAnalystOpinions") or 0)
 
     upside_pct = round((target_price - current_price) / current_price * 100, 1) if current_price > 0 else 0.0
-    score      = _SCORE.get(rec, 0.5)
-    decision   = _DECISION.get(rec, "neutral")
+    score, decision = _adjusted_score(rec, upside_pct)
 
     keywords = [rec.replace("_", " ")]
     if upside_pct > 10:

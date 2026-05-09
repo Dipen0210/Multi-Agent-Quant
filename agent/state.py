@@ -3,12 +3,10 @@ from typing import Optional, Annotated
 from typing_extensions import TypedDict
 from langgraph.graph.message import add_messages
 from agent.schemas import (
-    NewsAggregatorOutput,
     FinancialNewsOutput,
     RedditSentimentOutput,
     SECFilingOutput,
     AnalystRatingsOutput,
-    TechnicalAnalystOutput,
     MacroContextOutput,
     RiskDecision,
     PortfolioSignal,
@@ -25,21 +23,19 @@ class AgentState(TypedDict):
     # SSE streaming log
     messages: Annotated[list, add_messages]
 
-    # News sub-agents (parallel)
-    financial_news:   Optional[FinancialNewsOutput]
-    reddit_sentiment: Optional[RedditSentimentOutput]
-    sec_filing:       Optional[SECFilingOutput]
-    analyst_ratings:  Optional[AnalystRatingsOutput]
+    # 4 ticker-specific sentiment agents (parallel)
+    financial_news:    Optional[FinancialNewsOutput]
+    reddit_sentiment:  Optional[RedditSentimentOutput]
+    sec_filing:        Optional[SECFilingOutput]
+    analyst_ratings:   Optional[AnalystRatingsOutput]
 
-    # Analysis tier outputs
-    news_analyst:      Optional[NewsAggregatorOutput]
-    technical_analyst: Optional[TechnicalAnalystOutput]
-    macro_context:     Optional[MacroContextOutput]
+    # Macro agent (global market — feeds Risk Manager)
+    macro_context: Optional[MacroContextOutput]
 
-    # Decision tier outputs
-    risk_decision: Optional[RiskDecision]
+    # Decision tier
+    risk_decision:    Optional[RiskDecision]
     portfolio_signal: Optional[PortfolioSignal]
-    critic_decision: Optional[CriticDecision]
+    critic_decision:  Optional[CriticDecision]
 
     # Execution
     trade_execution: Optional[TradeExecution]

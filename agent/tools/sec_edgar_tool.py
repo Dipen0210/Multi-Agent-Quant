@@ -1,5 +1,5 @@
+import re
 import httpx
-import json
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 EDGAR_BASE   = "https://data.sec.gov"
@@ -65,17 +65,59 @@ def fetch_recent_filings(ticker: str, form_types: list[str] | None = None, count
         if form not in form_types:
             continue
         accnum_clean = accnum.replace("-", "")
-        filing_url   = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accnum_clean}/{desc}"
+        # Use the filing index to find the actual HTML document
+        index_url  = f"{EDGAR_BASE}/Archives/edgar/data/{int(cik)}/{accnum_clean}/{accnum_clean}-index.json"
+        filing_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accnum_clean}/{desc}"
+        text = _fetch_filing_text_from_index(index_url, int(cik), accnum_clean) or _fetch_filing_text(filing_url)
         results.append({
             "form": form,
             "date": date,
             "url":  filing_url,
             "accession": accnum,
+            "text": text,
         })
         if len(results) >= count:
             break
 
     return results
+
+
+def _fetch_filing_text_from_index(index_url: str, cik: int, accnum_clean: str) -> str:
+    """Find the main HTML document in a filing index and extract readable text."""
+    try:
+        resp = httpx.get(index_url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        files = resp.json().get("directory", {}).get("item", [])
+        # Prefer the main .htm/.html document (not XBRL, not R files)
+        htm_files = [
+            f["name"] for f in files
+            if f["name"].endswith((".htm", ".html"))
+            and not f["name"].startswith("R")
+            and "xbrl" not in f["name"].lower()
+            and "viewer" not in f["name"].lower()
+        ]
+        if not htm_files:
+            return ""
+        # Pick the largest HTML file (usually the main filing)
+        sizes = {f["name"]: int(f.get("size", 0)) for f in files if f["name"] in htm_files}
+        main_doc = max(sizes, key=sizes.get)
+        doc_url  = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accnum_clean}/{main_doc}"
+        return _fetch_filing_text(doc_url)
+    except Exception:
+        return ""
+
+
+def _fetch_filing_text(url: str, max_chars: int = 3000) -> str:
+    """Download a SEC filing URL and return stripped plain text."""
+    try:
+        resp = httpx.get(url, headers=HEADERS, timeout=20, follow_redirects=True)
+        resp.raise_for_status()
+        raw = resp.text
+        text = re.sub(r"<[^>]+>", " ", raw)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:max_chars]
+    except Exception:
+        return ""
 
 
 def chunk_filing_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:

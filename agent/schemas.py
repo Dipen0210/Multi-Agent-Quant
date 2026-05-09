@@ -17,18 +17,13 @@ class HeadlineResult(BaseModel):
     probabilities: dict[str, float]
 
 
-class SimilarEvent(BaseModel):
-    date: str
-    event: str
-    outcome: str
-
-
 class FinancialNewsOutput(BaseModel):
     decision: str                        # bullish | bearish | neutral
     sentiment_label: str
     sentiment_score: float
     headline_count: int
     headlines: list[str]
+    article_urls: list[str] = []
     keywords: list[str]
     reasoning: str
 
@@ -48,6 +43,7 @@ class SECFilingOutput(BaseModel):
     sentiment_label: str
     sentiment_score: float
     filing_type: str
+    filing_url: str = ""
     key_findings: list[str]
     keywords: list[str]
     reasoning: str
@@ -65,67 +61,52 @@ class AnalystRatingsOutput(BaseModel):
     reasoning: str
 
 
-class NewsAggregatorOutput(BaseModel):
-    # Backward-compatible fields (used by Risk Manager etc.)
-    sentiment_label: str
-    sentiment_score: float
-    headline_count: int
-    breakdown: dict[str, float]
-    headlines: list[str]
-    similar_past_events: list[SimilarEvent] = []
-    sec_context: str = ""
-
-    # Individual source outputs
-    financial_news: Optional[FinancialNewsOutput] = None
-    reddit: Optional[RedditSentimentOutput] = None
-    sec_filing: Optional[SECFilingOutput] = None
-    analyst_ratings: Optional[AnalystRatingsOutput] = None
-
-    # Aggregated
-    source_agreement: str = "mixed"      # all_bullish | mostly_bullish | mixed | mostly_bearish | all_bearish
-
-
-# Legacy alias kept so old imports don't break
-NewsAnalystOutput = NewsAggregatorOutput
-
-
-# ── Technical Analyst ──────────────────────────────────────────────────────────
-
-class TechnicalAnalystOutput(BaseModel):
-    rsi: float
-    macd_signal: str                      # bullish_crossover / bearish_crossover / neutral
-    bollinger_position: str               # above_upper / below_lower / mid_band
-    regime: str                           # trending_up / trending_down / ranging / volatile
-    chart_pattern: str = ""               # from vision model
-    chart_image_path: str = ""
-
-
 # ── Macro Context ──────────────────────────────────────────────────────────────
 
 class MacroContextOutput(BaseModel):
+    # Market indices (numbers → Risk Manager uses these for safety gates)
     vix: float
     yield_10yr: float
-    fed_stance: str                       # hawkish / dovish / neutral
-    risk_environment: str                 # risk_on / risk_off / neutral
-    favorable_for_sector: bool
+    spy_5d_return: float              # e.g. -0.023 = -2.3%
+    dxy: float                        # US Dollar Index
+
+    # Derived safety labels
+    fed_stance: str                   # hawkish / dovish / neutral
+    risk_environment: str             # risk_on / risk_off / neutral
+    market_trend: str                 # bullish / bearish / neutral (from SPY)
+
+    # Global news sentiment (narrative → Portfolio Manager)
+    sentiment_score: float
+    sentiment_label: str
+    global_news_keywords: list[str] = []
+    global_news_urls: list[str] = []
+    headline_count: int = 0
+
+    # Pinecone trend context
+    vix_trend: str = "stable"         # rising / falling / stable
+    consecutive_risk_off_days: int = 0
+
+    # Human-readable
     summary: str = ""
+    reasoning: str = ""
 
 
 # ── Risk Manager ───────────────────────────────────────────────────────────────
 
 class RiskDecision(BaseModel):
-    decision: str                         # APPROVED / VETOED
+    decision: str                      # APPROVED / VETOED
     original_size: int
     adjusted_size: int
     stop_loss_pct: float
     stop_loss_price: float
     reason: str
+    market_safety_flags: list[str] = []
 
 
 # ── Portfolio Manager ──────────────────────────────────────────────────────────
 
 class PortfolioSignal(BaseModel):
-    signal: str                           # BUY / SELL / HOLD
+    signal: str                        # BUY / SELL / HOLD
     confidence: float = Field(..., ge=0.0, le=1.0)
     bull_case: str
     bear_case: str
@@ -135,9 +116,9 @@ class PortfolioSignal(BaseModel):
 # ── Critic ─────────────────────────────────────────────────────────────────────
 
 class CriticDecision(BaseModel):
-    decision: str                         # PROCEED / HOLD
+    decision: str                      # PROCEED / HOLD
     confidence_check: bool
-    agent_agreement: str                  # e.g. "3/3"
+    agent_agreement: str               # e.g. "3/4"
     flags: list[str] = []
     veto_reason: Optional[str] = None
 
@@ -146,7 +127,7 @@ class CriticDecision(BaseModel):
 
 class TradeExecution(BaseModel):
     broker: str = "alpaca_paper"
-    action: str                           # buy / sell / hold
+    action: str                        # buy / sell / hold
     shares: int
     price: float
     stop_loss: float
@@ -160,11 +141,15 @@ class AgentResponse(BaseModel):
     ticker: str
     signal: str
     confidence: float
-    news_analyst: Optional[NewsAggregatorOutput] = None
-    technical_analyst: Optional[TechnicalAnalystOutput] = None
+    # 4 source sentiment agents
+    financial_news: Optional[FinancialNewsOutput] = None
+    reddit: Optional[RedditSentimentOutput] = None
+    sec_filing: Optional[SECFilingOutput] = None
+    analyst_ratings: Optional[AnalystRatingsOutput] = None
+    # Macro + decision tier
     macro_context: Optional[MacroContextOutput] = None
-    risk_manager: Optional[RiskDecision] = None
     portfolio_manager: Optional[PortfolioSignal] = None
+    risk_manager: Optional[RiskDecision] = None
     critic: Optional[CriticDecision] = None
     trade_executed: Optional[TradeExecution] = None
     sources: list[str] = []

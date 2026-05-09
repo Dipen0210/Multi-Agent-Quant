@@ -9,17 +9,34 @@ _SUBREDDITS = "wallstreetbets+stocks+investing+StockMarket"
 _HEADERS    = {"User-Agent": "QuantSentiment/1.0 (research tool)"}
 
 
-def _fetch_reddit_posts(ticker: str, limit: int = 20) -> list[str]:
+def _fetch_reddit_posts(ticker: str, limit: int = 25) -> list[str]:
+    """
+    Search finance subreddits for posts mentioning the ticker.
+    Uses restrict_sr=true so results are limited to those subreddits.
+    Filters results to only posts that actually mention the ticker in the title.
+    """
     url = (
-        f"https://www.reddit.com/search.json"
-        f"?q={ticker}&subreddit={_SUBREDDITS}"
-        f"&sort=new&t=day&limit={limit}"
+        f"https://www.reddit.com/r/{_SUBREDDITS}/search.json"
+        f"?q={ticker}&restrict_sr=true&sort=relevance&t=week&limit={limit}"
     )
     try:
         resp = httpx.get(url, headers=_HEADERS, timeout=10, follow_redirects=True)
         resp.raise_for_status()
         children = resp.json()["data"]["children"]
-        return [c["data"]["title"] for c in children if c["data"].get("title")]
+        ticker_upper = ticker.upper()
+        posts = []
+        for c in children:
+            title    = c["data"].get("title", "")
+            selftext = c["data"].get("selftext", "")
+            title_up = title.upper()
+            # Require ticker in the title (word boundary check)
+            if ticker_upper not in title_up and f"${ticker_upper}" not in title_up:
+                continue
+            text = title
+            if selftext and len(selftext) > 30:
+                text += " — " + selftext[:200]
+            posts.append(text)
+        return posts
     except Exception:
         return []
 

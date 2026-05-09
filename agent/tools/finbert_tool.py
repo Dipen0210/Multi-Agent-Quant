@@ -1,63 +1,102 @@
 import os
-import json
-import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
-from agent.schemas import NewsAnalystOutput
+import threading
+from functools import lru_cache
 
 STACK = os.getenv("STACK", "free")
+
+_LABEL_MAP = {"positive": "bullish", "negative": "bearish", "neutral": "neutral"}
+_lock = threading.Lock()
+_pipeline_instance = None
+
+
+_MODEL_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "huggingface", "my-finbert-finetuned"
+)
+
+
+def _get_pipeline():
+    global _pipeline_instance
+    if _pipeline_instance is None:
+        with _lock:
+            if _pipeline_instance is None:
+                from transformers import pipeline
+                model = os.path.abspath(_MODEL_PATH)
+                _pipeline_instance = pipeline(
+                    "text-classification",
+                    model=model,
+                    top_k=None,
+                    device=-1,  # CPU
+                )
+    return _pipeline_instance
 
 
 def score_headlines(headlines: list[str]) -> dict:
     """
-    Score headlines using FinBERT.
-    Routes to HuggingFace Spaces (free) or SageMaker (upgrade).
-    Falls back to neutral if neither is configured.
-    Returns raw {results, aggregate} dict.
+    Score headlines using local FinBERT (ProsusAI/finbert).
+    Returns {results, aggregate} dict.
+    aggregate.score: 0.0 (bearish) → 0.5 (neutral) → 1.0 (bullish)
     """
-    neutral = {"results": [], "aggregate": {"label": "neutral", "score": 0.5,
-                                             "headline_count": len(headlines), "breakdown": {}}}
+    neutral = {
+        "results": [],
+        "aggregate": {"label": "neutral", "score": 0.5, "headline_count": 0, "breakdown": {}},
+    }
     if not headlines:
-        return {**neutral, "aggregate": {**neutral["aggregate"], "headline_count": 0}}
-    try:
-        if STACK == "bedrock":
-            return _score_sagemaker(headlines)
-        return _score_hf_spaces(headlines)
-    except Exception:
         return neutral
 
+    # Truncate to 512 chars per headline (FinBERT context limit)
+    texts = [h[:512] for h in headlines]
 
-def _score_hf_spaces(headlines: list[str]) -> dict:
-    base = os.getenv("HF_SPACES_URL", "").split("#")[0].strip()
-    if not base.startswith("http"):
-        raise ValueError("HF_SPACES_URL not configured")
-    url = base.rstrip("/") + "/api/predict"
-    payload = {"data": [json.dumps(headlines)]}
-    response = httpx.post(url, json=payload, timeout=30)
-    response.raise_for_status()
-    raw = response.json()["data"][0]
-    return json.loads(raw)
+    try:
+        pipe = _get_pipeline()
+        raw_results = pipe(texts)
+    except Exception:
+        return {**neutral, "aggregate": {**neutral["aggregate"], "headline_count": len(headlines)}}
 
+    results = []
+    net_scores = []
+    label_counts: dict[str, int] = {"bullish": 0, "bearish": 0, "neutral": 0}
 
-def _score_sagemaker(headlines: list[str]) -> dict:
-    import boto3
-    client = boto3.client("sagemaker-runtime", region_name=os.getenv("AWS_REGION", "us-east-1"))
-    payload = json.dumps({"headlines": headlines})
-    response = client.invoke_endpoint(
-        EndpointName=os.getenv("SAGEMAKER_ENDPOINT"),
-        ContentType="application/json",
-        Body=payload,
-    )
-    return json.loads(response["Body"].read())
+    for text, probs in zip(texts, raw_results):
+        prob_map = {p["label"]: p["score"] for p in probs}
+        pos = prob_map.get("positive", 0.0)
+        neg = prob_map.get("negative", 0.0)
+        neu = prob_map.get("neutral", 0.0)
 
+        # Net sentiment: +1 = bullish, -1 = bearish
+        net = pos - neg
+        net_scores.append(net)
 
-def build_news_output(headlines: list[str], raw: dict, similar_events: list, sec_context: str) -> NewsAnalystOutput:
-    agg = raw["aggregate"]
-    return NewsAnalystOutput(
-        sentiment_label=agg["label"],
-        sentiment_score=agg["score"],
-        headline_count=agg["headline_count"],
-        breakdown=agg["breakdown"],
-        headlines=headlines,
-        similar_past_events=similar_events,
-        sec_context=sec_context,
-    )
+        top_label = max(prob_map, key=prob_map.__getitem__)
+        mapped_label = _LABEL_MAP.get(top_label, "neutral")
+        label_counts[mapped_label] += 1
+
+        results.append({
+            "text": text,
+            "label": mapped_label,
+            "score": round(0.5 + 0.5 * net, 4),
+            "probabilities": {
+                "bullish": round(pos, 4),
+                "bearish": round(neg, 4),
+                "neutral": round(neu, 4),
+            },
+        })
+
+    avg_net = sum(net_scores) / len(net_scores) if net_scores else 0.0
+    agg_score = round(0.5 + 0.5 * avg_net, 4)
+
+    total = len(results)
+    agg_label = "neutral"
+    if label_counts["bullish"] > total / 2:
+        agg_label = "bullish"
+    elif label_counts["bearish"] > total / 2:
+        agg_label = "bearish"
+
+    return {
+        "results": results,
+        "aggregate": {
+            "label": agg_label,
+            "score": agg_score,
+            "headline_count": total,
+            "breakdown": {k: round(v / total, 3) for k, v in label_counts.items()},
+        },
+    }

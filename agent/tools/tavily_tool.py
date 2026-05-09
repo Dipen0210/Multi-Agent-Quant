@@ -33,7 +33,7 @@ def fetch_news(ticker: str, days: int = 1) -> list[dict]:
             "title":          r.get("title", ""),
             "url":            r.get("url", ""),
             "content":        r.get("content", ""),
-            "published_date": r.get("published_date", since),
+            "published_date": r.get("published_date", today),
         })
     return articles
 

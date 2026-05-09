@@ -6,22 +6,20 @@ from agent.state import AgentState
 
 def build_initial_state(ticker: str, days: int = 2) -> AgentState:
     return {
-        "ticker":            ticker.upper(),
-        "days":              days,
-        "messages":          [],
-        "sources":           [],
-        "financial_news":    None,
-        "reddit_sentiment":  None,
-        "sec_filing":        None,
-        "analyst_ratings":   None,
-        "news_analyst":      None,
-        "technical_analyst": None,
-        "macro_context":     None,
-        "risk_decision":     None,
-        "portfolio_signal":  None,
-        "critic_decision":   None,
-        "trade_execution":   None,
-        "start_time_ms":     int(time.time() * 1000),
+        "ticker":           ticker.upper(),
+        "days":             days,
+        "messages":         [],
+        "sources":          [],
+        "financial_news":   None,
+        "reddit_sentiment": None,
+        "sec_filing":       None,
+        "analyst_ratings":  None,
+        "macro_context":    None,
+        "risk_decision":    None,
+        "portfolio_signal": None,
+        "critic_decision":  None,
+        "trade_execution":  None,
+        "start_time_ms":    int(time.time() * 1000),
     }
 
 

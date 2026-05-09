@@ -5,40 +5,52 @@ from agent.state import AgentState
 from agent.schemas import PortfolioSignal
 
 SYSTEM_PROMPT = """You are a senior portfolio manager at a quant hedge fund.
-You receive analysis from three specialist agents and must synthesize a trading decision.
-Be concise, rigorous, and honest about uncertainty. Never recommend when confidence is low."""
+You receive sentiment analysis from four independent sources about a specific stock.
+Your job is ONLY to reason about sentiment — not about price, charts, or market conditions.
 
-ANALYSIS_TEMPLATE = """
+Scoring rules:
+- 3 or 4 sources bullish → BUY, confidence 0.70–0.90
+- 2 sources bullish + 0 bearish → BUY if confidence strong, else HOLD
+- 2 sources bullish + 1 bearish → HOLD (conflicting)
+- 3 or 4 sources bearish → SELL, confidence 0.70–0.90
+- Anything else → HOLD
+
+CRITICAL: Neutral is NOT a bearish signal. A source being neutral means it has no opinion.
+Do NOT let neutral sources lower your conviction when other sources are clearly bullish/bearish.
+Example: 3 bullish + 1 neutral = BUY with ~0.75 confidence (not HOLD).
+Example: 2 bullish + 2 neutral = borderline, lean BUY with ~0.60 confidence.
+
+Only HOLD when there is genuine conflict (bullish vs bearish) or fewer than 2 directional signals."""
+
+SENTIMENT_TEMPLATE = """
 Ticker: {ticker}
 
-NEWS ANALYST:
-- Sentiment: {sentiment_label} (score: {sentiment_score})
-- Headlines analyzed: {headline_count}
-- SEC context: {sec_context}
+FINANCIAL NEWS SENTIMENT (today's articles, full body scored):
+- Signal: {news_decision} (score: {news_score:.2f})
+- Keywords: {news_keywords}
+- Reasoning: {news_reasoning}
 
-TECHNICAL ANALYST:
-- RSI: {rsi} (>70 overbought, <30 oversold)
-- MACD: {macd_signal}
-- Bollinger: {bollinger_position}
-- Regime: {regime}
-- Chart pattern: {chart_pattern}
+REDDIT COMMUNITY SENTIMENT (today's posts):
+- Signal: {reddit_decision} (score: {reddit_score:.2f})
+- Keywords: {reddit_keywords}
+- Reasoning: {reddit_reasoning}
 
-MACRO CONTEXT:
-- VIX: {vix} | 10yr yield: {yield_10yr}%
-- Fed stance: {fed_stance}
-- Risk environment: {risk_environment}
+SEC FILING SENTIMENT (most recent filing):
+- Signal: {sec_decision} (score: {sec_score:.2f})
+- Keywords: {sec_keywords}
+- Reasoning: {sec_reasoning}
 
-RISK MANAGER:
-- Decision: {risk_decision}
-- Adjusted position size: {adjusted_size} shares
-- Stop loss: ${stop_loss_price}
+ANALYST RATINGS SENTIMENT (institutional consensus):
+- Signal: {analyst_decision} (score: {analyst_score:.2f})
+- Keywords: {analyst_keywords}
+- Reasoning: {analyst_reasoning}
 
-Based on this data, provide:
-1. A 2-sentence BULL CASE (reasons to buy)
-2. A 2-sentence BEAR CASE (reasons not to buy)
+Based PURELY on these four sentiment signals, provide:
+1. A 2-sentence BULL CASE using evidence from the sentiment data above
+2. A 2-sentence BEAR CASE using evidence from the sentiment data above
 3. Final SIGNAL: exactly one of BUY / SELL / HOLD
-4. CONFIDENCE: a float between 0.0 and 1.0
-5. RESOLUTION: one sentence explaining why bull or bear case won
+4. CONFIDENCE: a float 0.0–1.0 reflecting how strongly the signals agree
+5. RESOLUTION: one sentence explaining which signals dominated and why
 
 Respond in this exact JSON format:
 {{
@@ -52,28 +64,23 @@ Respond in this exact JSON format:
 
 
 def _rule_based_signal(state: AgentState) -> PortfolioSignal:
-    """Fallback when LLM key is not available."""
-    news  = state.get("news_analyst")
-    tech  = state.get("technical_analyst")
-    macro = state.get("macro_context")
-    risk  = state.get("risk_decision")
+    """Fallback when LLM is unavailable — simple vote across 4 sources."""
+    fn  = state.get("financial_news")
+    rd  = state.get("reddit_sentiment")
+    sec = state.get("sec_filing")
+    ana = state.get("analyst_ratings")
 
-    if risk and risk.decision == "VETOED":
-        return PortfolioSignal(
-            signal="HOLD", confidence=0.0,
-            bull_case="N/A — trade vetoed by Risk Manager.",
-            bear_case=risk.reason,
-            resolution="Risk Manager veto overrides all signals.",
-        )
+    bullish = sum(1 for s in [fn, rd, sec, ana] if s and s.decision == "bullish")
+    bearish = sum(1 for s in [fn, rd, sec, ana] if s and s.decision == "bearish")
+    total   = sum(1 for s in [fn, rd, sec, ana] if s is not None)
 
-    score = 0.0
-    if news  and news.sentiment_label  == "positive": score += 1
-    if tech  and tech.macd_signal      in ("bullish", "bullish_crossover"): score += 1
-    if macro and macro.risk_environment == "risk_on": score += 1
-
-    if score >= 2:
-        signal, conf = "BUY",  round(0.5 + score * 0.1, 2)
-    elif score == 0:
+    if bullish >= 3:
+        signal, conf = "BUY",  round(0.5 + bullish * 0.1, 2)
+    elif bearish >= 3:
+        signal, conf = "SELL", round(0.5 + bearish * 0.1, 2)
+    elif bullish > bearish:
+        signal, conf = "BUY",  0.55
+    elif bearish > bullish:
         signal, conf = "SELL", 0.55
     else:
         signal, conf = "HOLD", 0.40
@@ -81,26 +88,13 @@ def _rule_based_signal(state: AgentState) -> PortfolioSignal:
     return PortfolioSignal(
         signal=signal,
         confidence=conf,
-        bull_case=f"Sentiment={news.sentiment_label if news else 'N/A'}, MACD={tech.macd_signal if tech else 'N/A'}",
-        bear_case="Rule-based fallback — no LLM key set.",
-        resolution=f"Score {score}/3 → {signal}",
+        bull_case=f"Rule-based: {bullish}/{total} sources bullish.",
+        bear_case=f"Rule-based: {bearish}/{total} sources bearish.",
+        resolution=f"Majority vote {bullish}B/{bearish}Be/{total-bullish-bearish}N → {signal}",
     )
 
 
 def portfolio_manager_node(state: AgentState) -> dict:
-    risk = state.get("risk_decision")
-
-    # Hard veto short-circuit
-    if risk and risk.decision == "VETOED":
-        signal = PortfolioSignal(
-            signal="HOLD", confidence=0.0,
-            bull_case="Trade vetoed by Risk Manager before synthesis.",
-            bear_case=risk.reason,
-            resolution="Risk Manager veto is final.",
-        )
-        return _result(signal)
-
-    # Try LLM synthesis
     if os.getenv("GROQ_API_KEY") or os.getenv("AWS_ACCESS_KEY_ID"):
         try:
             signal = _llm_synthesis(state)
@@ -110,46 +104,50 @@ def portfolio_manager_node(state: AgentState) -> dict:
     else:
         signal = _rule_based_signal(state)
 
-    return _result(signal)
+    return {
+        "portfolio_signal": signal,
+        "messages": [AIMessage(
+            content=f"[Portfolio Manager] {signal.signal} | confidence={signal.confidence:.2f} | {signal.resolution[:80]}"
+        )],
+    }
 
 
 def _llm_synthesis(state: AgentState) -> PortfolioSignal:
     import json
     from agent.tools.llm_client import get_llm
 
-    news  = state.get("news_analyst")
-    tech  = state.get("technical_analyst")
-    macro = state.get("macro_context")
-    risk  = state.get("risk_decision")
+    fn  = state.get("financial_news")
+    rd  = state.get("reddit_sentiment")
+    sec = state.get("sec_filing")
+    ana = state.get("analyst_ratings")
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT),
-        ("human",  ANALYSIS_TEMPLATE),
+        ("human",  SENTIMENT_TEMPLATE),
     ])
 
     chain = prompt | get_llm()
     resp  = chain.invoke({
-        "ticker":           state["ticker"],
-        "sentiment_label":  news.sentiment_label  if news  else "N/A",
-        "sentiment_score":  news.sentiment_score  if news  else 0.5,
-        "headline_count":   news.headline_count   if news  else 0,
-        "sec_context":      (news.sec_context[:200] if news and news.sec_context else "N/A"),
-        "rsi":              tech.rsi               if tech  else "N/A",
-        "macd_signal":      tech.macd_signal       if tech  else "N/A",
-        "bollinger_position": tech.bollinger_position if tech else "N/A",
-        "regime":           tech.regime            if tech  else "N/A",
-        "chart_pattern":    tech.chart_pattern     if tech  else "N/A",
-        "vix":              macro.vix              if macro else "N/A",
-        "yield_10yr":       macro.yield_10yr       if macro else "N/A",
-        "fed_stance":       macro.fed_stance       if macro else "N/A",
-        "risk_environment": macro.risk_environment if macro else "N/A",
-        "risk_decision":    risk.decision          if risk  else "N/A",
-        "adjusted_size":    risk.adjusted_size     if risk  else 0,
-        "stop_loss_price":  risk.stop_loss_price   if risk  else 0.0,
+        "ticker":          state["ticker"],
+        "news_decision":   fn.decision        if fn  else "N/A",
+        "news_score":      fn.sentiment_score if fn  else 0.5,
+        "news_keywords":   ", ".join(fn.keywords[:5]) if fn and fn.keywords else "none",
+        "news_reasoning":  fn.reasoning       if fn  else "No data",
+        "reddit_decision": rd.decision        if rd  else "N/A",
+        "reddit_score":    rd.sentiment_score if rd  else 0.5,
+        "reddit_keywords": ", ".join(rd.keywords[:5]) if rd and rd.keywords else "none",
+        "reddit_reasoning":rd.reasoning       if rd  else "No data",
+        "sec_decision":    sec.decision       if sec else "N/A",
+        "sec_score":       sec.sentiment_score if sec else 0.5,
+        "sec_keywords":    ", ".join(sec.keywords[:5]) if sec and sec.keywords else "none",
+        "sec_reasoning":   sec.reasoning      if sec else "No data",
+        "analyst_decision":ana.decision       if ana else "N/A",
+        "analyst_score":   ana.sentiment_score if ana else 0.5,
+        "analyst_keywords":ana.recommendation if ana else "none",
+        "analyst_reasoning":ana.reasoning     if ana else "No data",
     })
 
-    raw  = resp.content.strip()
-    # Extract JSON block if LLM wraps it in markdown
+    raw = resp.content.strip()
     if "```" in raw:
         raw = raw.split("```")[1].replace("json", "").strip()
 
@@ -161,14 +159,3 @@ def _llm_synthesis(state: AgentState) -> PortfolioSignal:
         bear_case=data["bear_case"],
         resolution=data["resolution"],
     )
-
-
-def _result(signal: PortfolioSignal) -> dict:
-    return {
-        "portfolio_signal": signal,
-        "messages": [AIMessage(
-            content=f"[Portfolio Manager] {signal.signal} | "
-                    f"confidence={signal.confidence:.2f} | "
-                    f"{signal.resolution[:80]}"
-        )],
-    }

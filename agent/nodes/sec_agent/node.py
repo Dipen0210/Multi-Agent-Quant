@@ -3,22 +3,41 @@ from langchain_core.messages import AIMessage
 from agent.state import AgentState
 from agent.schemas import SECFilingOutput
 from agent.tools.sec_edgar_tool import fetch_recent_filings
+from agent.tools.finbert_tool import score_headlines
 from agent.tools.keywords import extract_keywords, score_to_decision, score_to_label
 
-_RECENT_DAYS = 30  # only consider filings from the last 30 days
+_RECENT_DAYS = 30
 
-_BULLISH = {"growth","beat","exceeded","raised","record","strong","positive","increased","acceleration"}
-_BEARISH = {"decline","loss","impairment","risk","litigation","investigation","miss","reduced","headwind","uncertain"}
+_EXTRACT_PROMPT = """You are a financial analyst. The text below is raw SEC filing content (may contain XBRL tags, numbers, legal boilerplate).
+Extract 8-10 clear, concise English sentences that summarize the key financial highlights:
+revenue, earnings, guidance, risks, growth, margins, cash flow, debt.
+Return ONLY the sentences, one per line. No bullet points. No preamble.
+
+Filing text:
+{text}"""
 
 
-def _score_filing_text(text: str) -> float:
-    words = set(text.lower().split())
-    bulls = len(words & _BULLISH)
-    bears = len(words & _BEARISH)
-    total = bulls + bears
-    if total == 0:
-        return 0.5
-    return round(0.5 + 0.5 * (bulls - bears) / total, 3)
+def _extract_filing_sentences(raw_text: str) -> list[str]:
+    """Use Groq to extract clean financial sentences from raw EDGAR text."""
+    if not raw_text or len(raw_text) < 50:
+        return []
+    try:
+        from agent.tools.llm_client import get_llm
+        prompt = _EXTRACT_PROMPT.format(text=raw_text[:4000])
+        resp = get_llm().invoke(prompt)
+        lines = [l.strip() for l in resp.content.strip().split("\n") if len(l.strip()) > 20]
+        return lines[:10]
+    except Exception:
+        return []
+
+
+def _score_sentences(sentences: list[str]) -> tuple[float, str]:
+    """Score extracted sentences with FinBERT. Returns (score, label)."""
+    if not sentences:
+        return 0.5, "neutral"
+    result = score_headlines(sentences)
+    agg = result["aggregate"]
+    return agg["score"], agg["label"]
 
 
 def sec_node(state: AgentState) -> dict:
@@ -53,23 +72,22 @@ def sec_node(state: AgentState) -> dict:
         }
 
     filing      = filings[0]
-    text        = filing.get("text", "")[:2000]
     filing_type = filing.get("form", "unknown")
-    score       = _score_filing_text(text)
-    keywords    = extract_keywords([text], n=8)
-    decision    = score_to_decision(score)
-    label       = score_to_label(score)
+    raw_text    = filing.get("text", "")
 
-    key_terms = {"revenue","earnings","guidance","margin","growth","loss","cash","debt"}
-    findings  = [
-        line.strip()
-        for line in text.split(".")
-        if any(t in line.lower() for t in key_terms)
-    ][:4]
+    # Groq extracts clean financial sentences from raw XBRL/HTML → FinBERT scores them
+    sentences   = _extract_filing_sentences(raw_text)
+    score, label = _score_sentences(sentences)
+    text_for_kw = " ".join(sentences)
+    keywords    = extract_keywords([text_for_kw], n=8)
+    decision    = score_to_decision(score)
+
+    # Key findings = the extracted sentences (already clean English)
+    findings = sentences[:4] if sentences else [raw_text[:100]]
 
     reasoning = (
-        f"Most recent {filing_type} filing analysed. "
-        f"Bullish/bearish term ratio gives score {score:.2f}. "
+        f"Most recent {filing_type} filing — Groq extracted {len(sentences)} financial sentences, "
+        f"scored via FinBERT. Score {score:.2f} ({label}). "
         f"Key themes: {', '.join(keywords[:4]) if keywords else 'none'}."
     )
 
@@ -78,6 +96,7 @@ def sec_node(state: AgentState) -> dict:
         sentiment_label = label,
         sentiment_score = score,
         filing_type     = filing_type,
+        filing_url      = filing.get("url", ""),
         key_findings    = findings if findings else [text[:100]],
         keywords        = keywords,
         reasoning       = reasoning,
