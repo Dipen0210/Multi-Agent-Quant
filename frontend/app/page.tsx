@@ -101,7 +101,7 @@ function Pipeline({ nodes }: { nodes: NodeState[] }) {
           complete ? 'border-green-800/70 bg-green-950/20' :
                      'border-slate-800 bg-slate-900/30'}`}>
         <span className="text-sm shrink-0">{n?.icon}</span>
-        <span className="text-sm font-medium text-slate-200 truncate flex-1">{n?.label}</span>
+        <span className="text-sm font-medium text-slate-200 flex-1">{n?.label}</span>
         {running  && <span className="spinner shrink-0" />}
         {complete && <span className="text-green-400 text-xs font-bold shrink-0">✓</span>}
       </motion.div>
@@ -481,7 +481,7 @@ export default function Home() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Pipeline sidebar */}
-        <div className="w-80 shrink-0 border-r border-slate-800 bg-slate-900/30 p-4 overflow-y-auto">
+        <div className="w-96 shrink-0 border-r border-slate-800 bg-slate-900/30 p-4 overflow-y-auto">
           <div className="text-xs text-slate-600 uppercase tracking-wider mb-3">Agent Pipeline</div>
           {started
             ? <Pipeline nodes={nodes} />
