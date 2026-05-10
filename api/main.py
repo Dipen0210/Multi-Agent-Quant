@@ -8,6 +8,7 @@ from api.routes.ask       import router as ask_router
 from api.routes.stream    import router as stream_router
 from api.routes.portfolio import router as portfolio_router
 from api.routes.analytics import router as analytics_router
+from api.routes.trade     import router as trade_router
 
 app = FastAPI(
     title="QuantSentiment Agent",
@@ -32,3 +33,4 @@ app.include_router(ask_router,       tags=["Agent"])
 app.include_router(stream_router,    tags=["Agent"])
 app.include_router(portfolio_router, tags=["Portfolio"])
 app.include_router(analytics_router, tags=["Analytics"])
+app.include_router(trade_router,     tags=["Trading"])

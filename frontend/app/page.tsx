@@ -182,6 +182,36 @@ function Results({ result }: { result: AgentResult }) {
   const tradeOk  = !!result.trade_executed && !result.trade_executed.skipped_reason;
   const macro    = result.macro_context;
 
+  // Manual trade state
+  const awaitingConfirm = result.trade_executed?.skipped_reason === 'awaiting_user_confirmation';
+  const [trading,    setTrading]    = useState(false);
+  const [tradeResult, setTradeResult] = useState<{status:string; shares:number; price:number; order_id:string} | null>(null);
+  const [tradeError,  setTradeError]  = useState('');
+
+  async function confirmTrade() {
+    if (!result.trade_executed) return;
+    setTrading(true); setTradeError('');
+    try {
+      const resp = await fetch(`${API_URL}/trade`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker:    result.ticker,
+          side:      result.trade_executed.action,
+          shares:    result.trade_executed.shares,
+          stop_loss: result.trade_executed.stop_loss,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail ?? 'Trade failed');
+      setTradeResult(data);
+    } catch (e: any) {
+      setTradeError(e.message);
+    } finally {
+      setTrading(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
 
@@ -200,29 +230,60 @@ function Results({ result }: { result: AgentResult }) {
           <div className="text-slate-600 text-xs mt-1">{(result.analysis_time_ms/1000).toFixed(1)}s</div>
         </div>
 
-        {/* Execution — only trade status, nothing else */}
+        {/* Execution */}
         <Card>
           <CardTitle>⚡ Execution</CardTitle>
-          {tradeOk && result.trade_executed ? (
+
+          {/* Trade confirmed by user */}
+          {tradeResult ? (
             <div className="space-y-1">
-              <Row label="Action" value={result.trade_executed.action.toUpperCase()}
-                color={result.trade_executed.action==='buy' ? 'text-green-400' : 'text-red-400'} />
-              <Row label="Shares" value={String(result.trade_executed.shares)} />
-              <Row label="Stop Loss" value={`$${result.trade_executed.stop_loss.toFixed(2)}`} />
-              <Row label="Order ID" value={result.trade_executed.order_id.slice(0,12)+'…'} />
+              <Row label="Action" value={tradeResult.status === 'executed' ? result.trade_executed!.action.toUpperCase() : '—'}
+                color={result.trade_executed?.action === 'buy' ? 'text-green-400' : 'text-red-400'} />
+              <Row label="Shares" value={String(tradeResult.shares)} />
+              <Row label="Price"  value={`$${tradeResult.price.toFixed(2)}`} />
+              <Row label="Order ID" value={tradeResult.order_id.slice(0,12)+'…'} />
               <a href="https://app.alpaca.markets/paper/dashboard/overview" target="_blank" rel="noopener noreferrer"
                 className="mt-3 w-full flex justify-center text-xs text-green-400 border border-green-800 rounded-lg py-1.5 hover:bg-green-900/30 transition-colors">
                 View on Alpaca ↗
               </a>
             </div>
+
+          /* Awaiting user confirmation — show the button */
+          ) : awaitingConfirm && result.trade_executed ? (
+            <div className="space-y-3">
+              <div className={`rounded-lg border px-3 py-2 text-xs space-y-1 ${
+                result.trade_executed.action === 'buy'
+                  ? 'border-green-800 bg-green-900/20'
+                  : 'border-red-800 bg-red-900/20'}`}>
+                <p className={`font-bold text-sm ${result.trade_executed.action === 'buy' ? 'text-green-400' : 'text-red-400'}`}>
+                  {result.trade_executed.action.toUpperCase()} {result.trade_executed.shares} shares of {result.ticker}
+                </p>
+                <p className="text-slate-400">Est. price: ${result.trade_executed.price.toFixed(2)}</p>
+                <p className="text-slate-400">Stop loss: ${result.trade_executed.stop_loss.toFixed(2)}</p>
+              </div>
+              {tradeError && <p className="text-xs text-red-400">⚠ {tradeError}</p>}
+              <button onClick={confirmTrade} disabled={trading}
+                className={`w-full py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 ${
+                  result.trade_executed.action === 'buy'
+                    ? 'bg-green-600 hover:bg-green-500 text-white'
+                    : 'bg-red-600 hover:bg-red-500 text-white'
+                }`}>
+                {trading ? 'Placing order…' : `✓ Confirm ${result.trade_executed.action.toUpperCase()}`}
+              </button>
+              <p className="text-xs text-slate-600 text-center">This will place a real paper trade on Alpaca</p>
+            </div>
+
+          /* No trade / HOLD */
           ) : (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🚫</span>
-                <span className="text-sm font-semibold text-slate-300">No Trade Executed</span>
+                <span className="text-sm font-semibold text-slate-300">No Trade</span>
               </div>
               <p className="text-xs text-slate-500">
-                {result.trade_executed?.skipped_reason ?? result.critic?.veto_reason ?? 'Signal is HOLD'}
+                {result.trade_executed?.skipped_reason && result.trade_executed.skipped_reason !== 'awaiting_user_confirmation'
+                  ? result.trade_executed.skipped_reason
+                  : result.critic?.veto_reason ?? 'Signal is HOLD'}
               </p>
               <a href="https://app.alpaca.markets/paper/dashboard/overview" target="_blank" rel="noopener noreferrer"
                 className="text-xs text-slate-500 border border-slate-700 rounded-lg px-3 py-1.5 hover:border-slate-500 transition-colors inline-block">
