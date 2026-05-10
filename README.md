@@ -50,20 +50,42 @@ A multi-agent AI system that analyses stock sentiment from 5 independent sources
 
 ## Tech Stack
 
-| | |
+### AI / ML
+| Layer | Technology |
 |---|---|
 | LLM | Groq — Llama 3.3 70B |
-| Sentiment | Fine-tuned FinBERT (`Dipen0210/finbert-finetuned`) |
+| Sentiment Model | Fine-tuned FinBERT (`Dipen0210/finbert-finetuned`) |
+| Model Hosting | Hugging Face Spaces (Gradio API) |
 | Agent Framework | LangGraph + LangChain |
 | Observability | LangSmith |
 | Vector Store | Pinecone |
+
+### Data Sources
+| Source | Technology |
+|---|---|
 | News | Tavily Search API |
 | Market Data | yfinance |
-| SEC Data | SEC EDGAR API |
+| SEC Filings | SEC EDGAR API |
 | Paper Trading | Alpaca Paper Trading API |
+
+### Backend & Frontend
+| Layer | Technology |
+|---|---|
 | Backend | FastAPI + SSE streaming |
 | Frontend | Next.js 16 + Tailwind CSS + Recharts |
 | MCP Server | FastMCP (Claude Desktop integration) |
+
+### Infrastructure & DevOps
+| Layer | Technology |
+|---|---|
+| Containerisation | Docker |
+| Container Registry | AWS ECR |
+| Compute | AWS EC2 |
+| Reverse Proxy | Nginx (SSE-compatible, no buffering) |
+| Serverless Ingestion | AWS Lambda |
+| Scheduled Triggers | AWS EventBridge (nightly news, weekly SEC, market-hours portfolio) |
+| ML Inference (upgrade) | AWS SageMaker |
+| CI / CD | GitHub Actions (build → ECR → EC2 deploy on push to main) |
 
 ---
 
