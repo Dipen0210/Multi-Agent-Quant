@@ -53,9 +53,9 @@ A multi-agent AI system that analyses stock sentiment from 5 independent sources
 ### AI / ML
 | Layer | Technology |
 |---|---|
-| LLM | Groq — Llama 3.3 70B |
+| LLM | Groq — Llama 3.3 70B *(upgradeable to AWS Bedrock — Claude / Llama via managed API)* |
 | Sentiment Model | Fine-tuned FinBERT (`Dipen0210/finbert-finetuned`) |
-| Model Hosting | Hugging Face Spaces (Gradio API) |
+| Model Hosting | Hugging Face Spaces (Gradio API) *(upgradeable to AWS SageMaker — dedicated endpoint, no cold starts)* |
 | Agent Framework | LangGraph + LangChain |
 | Observability | LangSmith |
 | Vector Store | Pinecone |
@@ -82,9 +82,6 @@ A multi-agent AI system that analyses stock sentiment from 5 independent sources
 | Container Registry | AWS ECR |
 | Compute | AWS EC2 |
 | Reverse Proxy | Nginx (SSE-compatible, no buffering) |
-| Serverless Ingestion | AWS Lambda |
-| Scheduled Triggers | AWS EventBridge (nightly news, weekly SEC, market-hours portfolio) |
-| ML Inference (upgrade) | AWS SageMaker |
 | CI / CD | GitHub Actions (build → ECR → EC2 deploy on push to main) |
 
 ---
