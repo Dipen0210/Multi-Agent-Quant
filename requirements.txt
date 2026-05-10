@@ -33,8 +33,7 @@ tavily-python>=0.5.0
 
 # ── ML / NLP ───────────────────────────────────────────────────────
 transformers>=4.44.0
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.4.0+cpu
+torch>=2.6.0
 numpy>=1.26.0
 pandas>=2.2.0
 scikit-learn>=1.5.0

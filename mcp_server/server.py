@@ -5,9 +5,9 @@ Claude Desktop config (~/.claude/claude_desktop_config.json):
     {
       "mcpServers": {
         "quantsentiment": {
-          "command": "/Users/dipen/Projects/QuantSentiment/venv/bin/python",
+          "command": "/Users/dipen/Projects/Qagent/venv/bin/python",
           "args": ["-m", "mcp_server.server"],
-          "cwd": "/Users/dipen/Projects/QuantSentiment",
+          "cwd": "/Users/dipen/Projects/Qagent",
           "env": { "API_BASE_URL": "http://localhost:8000" }
         }
       }
