@@ -2,13 +2,14 @@ from datetime import datetime, timedelta, timezone
 from langchain_core.messages import AIMessage
 from agent.state import AgentState
 from agent.schemas import SECFilingOutput
-from agent.tools.sec_edgar_tool import fetch_recent_filings, chunk_filing_text
+from agent.tools.sec_edgar_tool import fetch_latest_filing_meta, fetch_recent_filings, chunk_filing_text
 from agent.tools.finbert_tool import score_headlines
 from agent.tools.keywords import extract_keywords, score_to_decision, score_to_label
 from agent.tools.pinecone_tool import (
     upsert_sec_chunks,
+    delete_sec_chunks,
     query_sec_for_ticker,
-    has_recent_sec_filing,
+    get_stored_filing_info,
 )
 
 _RECENT_DAYS = 30
@@ -48,16 +49,27 @@ def _score_sentences(sentences: list[str]) -> tuple[float, str]:
 _RAG_QUERY = "{ticker} revenue earnings guidance risk factors financial performance"
 
 
-def _ingest_and_store(ticker: str, filing: dict) -> list[dict]:
-    """Chunk a filing, embed it, store in Pinecone, return retrieved chunks."""
-    raw_text = filing.get("text", "")
+def _fetch_and_store(ticker: str, meta: dict, stored_chunk_count: int) -> list[dict]:
+    """Fetch full filing text, delete old Pinecone chunks, embed and store new ones."""
+    # Delete old chunks cleanly before upserting new filing
+    if stored_chunk_count > 0:
+        delete_sec_chunks(ticker, stored_chunk_count)
+
+    try:
+        filings = fetch_recent_filings(ticker, form_types=["10-Q", "10-K", "8-K"], count=1)
+    except Exception:
+        filings = []
+
+    filing   = filings[0] if filings else None
+    raw_text = filing.get("text", "") if filing else ""
     chunks   = chunk_filing_text(raw_text, chunk_size=500, overlap=50)
+
     if chunks:
         upsert_sec_chunks(
             ticker    = ticker,
-            form      = filing.get("form", "unknown"),
-            date      = filing.get("date", ""),
-            accession = filing.get("accession", ""),
+            form      = meta["form"],
+            date      = meta["date"],
+            accession = meta["accession"],
             chunks    = chunks,
         )
     return query_sec_for_ticker(ticker, _RAG_QUERY.format(ticker=ticker))
@@ -66,45 +78,41 @@ def _ingest_and_store(ticker: str, filing: dict) -> list[dict]:
 def sec_node(state: AgentState) -> dict:
     ticker = state["ticker"]
 
-    # ── 1. RAG: check Pinecone cache first ────────────────────────────────────
-    source = "pinecone-cache"
-    if has_recent_sec_filing(ticker):
+    # ── 1. Fast metadata check from EDGAR (no text download) ─────────────────
+    try:
+        meta = fetch_latest_filing_meta(ticker, form_types=["10-Q", "10-K", "8-K"])
+    except Exception:
+        meta = None
+
+    if not meta:
+        output = SECFilingOutput(
+            decision        = "neutral",
+            sentiment_label = "neutral",
+            sentiment_score = 0.5,
+            filing_type     = "none",
+            key_findings    = ["No recent SEC filings found"],
+            keywords        = [],
+            reasoning       = "No SEC filings available for analysis.",
+        )
+        return {
+            "sec_filing": output,
+            "messages":   [AIMessage(content="[SEC Agent] No filings found → neutral")],
+        }
+
+    filing_type = meta["form"]
+    filing_url  = meta["url"]
+
+    # ── 2. Compare EDGAR date with what's stored in Pinecone ─────────────────
+    stored = get_stored_filing_info(ticker)
+
+    if stored and stored["date"] == meta["date"]:
+        # Same filing already in Pinecone — use cache
+        source = "pinecone-cache"
         chunks = query_sec_for_ticker(ticker, _RAG_QUERY.format(ticker=ticker))
-        filing_type = chunks[0]["metadata"].get("form", "unknown") if chunks else "unknown"
-        filing_url  = ""
     else:
-        # ── 2. Cache miss: fetch from EDGAR, chunk, embed, store ───────────────
-        source = "edgar-live"
-        try:
-            filings = fetch_recent_filings(ticker, form_types=["10-Q", "10-K", "8-K"], count=5)
-        except Exception:
-            filings = []
-
-        cutoff = datetime.now(timezone.utc) - timedelta(days=_RECENT_DAYS)
-        recent = [
-            f for f in filings
-            if f.get("date") and datetime.fromisoformat(f["date"].replace("Z", "")).replace(tzinfo=timezone.utc) >= cutoff
-        ] if filings else []
-        filing = (recent or filings[:1] or [None])[0]
-
-        if not filing:
-            output = SECFilingOutput(
-                decision        = "neutral",
-                sentiment_label = "neutral",
-                sentiment_score = 0.5,
-                filing_type     = "none",
-                key_findings    = ["No recent SEC filings found"],
-                keywords        = [],
-                reasoning       = "No SEC filings available for analysis.",
-            )
-            return {
-                "sec_filing": output,
-                "messages":   [AIMessage(content="[SEC Agent] No filings found → neutral")],
-            }
-
-        filing_type = filing.get("form", "unknown")
-        filing_url  = filing.get("url", "")
-        chunks      = _ingest_and_store(ticker, filing)
+        # New filing detected — fetch full text, overwrite Pinecone
+        source = "edgar-live (new filing)"
+        chunks = _fetch_and_store(ticker, meta, stored["chunk_count"] if stored else 0)
 
     if not chunks:
         output = SECFilingOutput(

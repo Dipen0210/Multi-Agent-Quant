@@ -33,6 +33,46 @@ def _get_cik(ticker: str) -> str | None:
 # ── Filings fetch ─────────────────────────────────────────────────────────────
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=8))
+def fetch_latest_filing_meta(ticker: str, form_types: list[str] | None = None) -> dict | None:
+    """
+    Lightweight metadata-only call — returns {form, date, accession, url} for the
+    most recent matching filing. No document text is downloaded.
+    """
+    if form_types is None:
+        form_types = ["10-Q", "10-K", "8-K"]
+
+    cik = _get_cik(ticker)
+    if not cik:
+        return None
+
+    resp = httpx.get(
+        f"{EDGAR_BASE}/submissions/CIK{cik}.json",
+        headers=HEADERS,
+        timeout=15,
+    )
+    resp.raise_for_status()
+    submissions = resp.json()
+
+    filings = submissions.get("filings", {}).get("recent", {})
+    forms   = filings.get("form", [])
+    dates   = filings.get("filingDate", [])
+    descs   = filings.get("primaryDocument", [])
+    accnums = filings.get("accessionNumber", [])
+
+    for form, date, desc, accnum in zip(forms, dates, descs, accnums):
+        if form not in form_types:
+            continue
+        accnum_clean = accnum.replace("-", "")
+        return {
+            "form":      form,
+            "date":      date,
+            "accession": accnum,
+            "url":       f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accnum_clean}/{desc}",
+        }
+    return None
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=8))
 def fetch_recent_filings(ticker: str, form_types: list[str] | None = None, count: int = 3) -> list[dict]:
     """
     Fetch recent SEC filings for a ticker.

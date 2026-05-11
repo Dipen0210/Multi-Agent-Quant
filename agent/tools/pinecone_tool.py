@@ -90,20 +90,59 @@ def query_sec(query: str, top_k: int = 5) -> list[dict]:
 
 
 def upsert_sec_chunks(ticker: str, form: str, date: str, accession: str, chunks: list[str]) -> int:
-    """Embed and store SEC filing chunks with ticker metadata for later retrieval."""
-    docs = [
-        {
-            "text":      chunk,
-            "ticker":    ticker.upper(),
-            "form":      form,
-            "date":      date,
-            "accession": accession,
-            "timestamp": int(time.time()),
+    """Embed and store SEC filing chunks with ticker metadata for later retrieval.
+    IDs are sec-{TICKER}-{i} so upserting a new filing overwrites the same positions.
+    """
+    ticker_up   = ticker.upper()
+    chunk_count = len(chunks)
+    vectors     = embed_texts(chunks)
+    records     = []
+    for i, (chunk, vec) in enumerate(zip(chunks, vectors)):
+        records.append({
+            "id":     f"sec-{ticker_up}-{i}",
+            "values": vec,
+            "metadata": {
+                "text":        chunk[:500],
+                "ticker":      ticker_up,
+                "form":        form,
+                "date":        date,
+                "accession":   accession,
+                "chunk_count": chunk_count,
+                "timestamp":   int(time.time()),
+            },
+        })
+    index = _get_index()
+    index.upsert(vectors=records, namespace=NS_SEC)
+    return len(records)
+
+
+def delete_sec_chunks(ticker: str, chunk_count: int) -> None:
+    """Delete all stored chunk IDs for a ticker (used before upserting a new filing)."""
+    ids = [f"sec-{ticker.upper()}-{i}" for i in range(chunk_count)]
+    _get_index().delete(ids=ids, namespace=NS_SEC)
+
+
+def get_stored_filing_info(ticker: str) -> dict | None:
+    """Return {date, chunk_count} for the stored SEC filing, or None if not found."""
+    try:
+        vec   = embed_text(f"{ticker} SEC filing financial results")
+        index = _get_index()
+        resp  = index.query(
+            vector=vec,
+            top_k=1,
+            filter={"ticker": {"$eq": ticker.upper()}},
+            namespace=NS_SEC,
+            include_metadata=True,
+        )
+        if not resp.matches:
+            return None
+        meta = resp.matches[0].metadata
+        return {
+            "date":        meta.get("date"),
+            "chunk_count": int(meta.get("chunk_count", 0)),
         }
-        for chunk in chunks
-    ]
-    id_prefix = f"sec-{ticker.upper()}-{accession.replace('-', '')}-"
-    return upsert_documents(docs, NS_SEC, id_prefix)
+    except Exception:
+        return None
 
 
 def query_sec_for_ticker(ticker: str, query: str, top_k: int = 6) -> list[dict]:
@@ -123,22 +162,6 @@ def query_sec_for_ticker(ticker: str, query: str, top_k: int = 6) -> list[dict]:
     ]
 
 
-def has_recent_sec_filing(ticker: str, days: int = 90) -> bool:
-    """Return True if Pinecone already has SEC chunks for this ticker within `days`."""
-    cutoff_ts = int(time.time()) - (days * 86400)
-    try:
-        vec   = embed_text(f"{ticker} SEC filing financial results")
-        index = _get_index()
-        resp  = index.query(
-            vector=vec,
-            top_k=1,
-            filter={"ticker": {"$eq": ticker.upper()}, "timestamp": {"$gte": cutoff_ts}},
-            namespace=NS_SEC,
-            include_metadata=True,
-        )
-        return bool(resp.matches) and resp.matches[0].score > 0.3
-    except Exception:
-        return False
 
 
 # ── Macro trend store ──────────────────────────────────────────────────────────
