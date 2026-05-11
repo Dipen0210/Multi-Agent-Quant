@@ -85,7 +85,24 @@ A multi-agent AI system that analyses stock sentiment from 5 independent sources
 | CI / CD | GitHub Actions (build → ECR → EC2 deploy on push to main) |
 
 ---
+## Visuals
 
+<img width="1470" height="740" alt="Screenshot 2026-05-11 at 10 31 30 AM" src="https://github.com/user-attachments/assets/5925f8dd-24fc-4ecf-96e6-6b9dd7b5c517" />
+
+<img width="1470" height="751" alt="Screenshot 2026-05-11 at 10 31 07 AM" src="https://github.com/user-attachments/assets/06f25dc0-fc76-41e2-a88e-f9db07e831e9" />
+
+<img width="1470" height="653" alt="Screenshot 2026-05-11 at 10 30 55 AM" src="https://github.com/user-attachments/assets/7aa1857b-779e-47f0-864a-77922f5fbfd0" />
+
+<img width="1470" height="733" alt="Screenshot 2026-05-11 at 10 30 11 AM" src="https://github.com/user-attachments/assets/2f8c9536-cec8-4f23-9729-98bdf07d6664" />
+
+<img width="1470" height="747" alt="Screenshot 2026-05-11 at 10 29 41 AM" src="https://github.com/user-attachments/assets/90015a96-a100-475a-a577-1b13e4205d1e" />
+
+<img width="1470" height="547" alt="Screenshot 2026-05-11 at 10 29 32 AM" src="https://github.com/user-attachments/assets/683a800a-3cb0-45d1-a1cf-7def2827b31e" />
+
+<img width="1467" height="740" alt="Screenshot 2026-05-11 at 10 29 10 AM" src="https://github.com/user-attachments/assets/f28004a3-83c8-4005-a6d5-5669e355504e" />
+
+
+---
 ## Setup
 
 ### 1. Clone & install
