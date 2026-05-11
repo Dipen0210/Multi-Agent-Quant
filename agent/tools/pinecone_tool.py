@@ -89,6 +89,58 @@ def query_sec(query: str, top_k: int = 5) -> list[dict]:
     return query_similar(query, NS_SEC, top_k)
 
 
+def upsert_sec_chunks(ticker: str, form: str, date: str, accession: str, chunks: list[str]) -> int:
+    """Embed and store SEC filing chunks with ticker metadata for later retrieval."""
+    docs = [
+        {
+            "text":      chunk,
+            "ticker":    ticker.upper(),
+            "form":      form,
+            "date":      date,
+            "accession": accession,
+            "timestamp": int(time.time()),
+        }
+        for chunk in chunks
+    ]
+    id_prefix = f"sec-{ticker.upper()}-{accession.replace('-', '')}-"
+    return upsert_documents(docs, NS_SEC, id_prefix)
+
+
+def query_sec_for_ticker(ticker: str, query: str, top_k: int = 6) -> list[dict]:
+    """Retrieve most relevant SEC chunks for a specific ticker via similarity search."""
+    vec   = embed_text(query)
+    index = _get_index()
+    resp  = index.query(
+        vector=vec,
+        top_k=top_k,
+        filter={"ticker": {"$eq": ticker.upper()}},
+        namespace=NS_SEC,
+        include_metadata=True,
+    )
+    return [
+        {"text": m.metadata.get("text", ""), "score": round(m.score, 4), "metadata": m.metadata}
+        for m in resp.matches
+    ]
+
+
+def has_recent_sec_filing(ticker: str, days: int = 90) -> bool:
+    """Return True if Pinecone already has SEC chunks for this ticker within `days`."""
+    cutoff_ts = int(time.time()) - (days * 86400)
+    try:
+        vec   = embed_text(f"{ticker} SEC filing financial results")
+        index = _get_index()
+        resp  = index.query(
+            vector=vec,
+            top_k=1,
+            filter={"ticker": {"$eq": ticker.upper()}, "timestamp": {"$gte": cutoff_ts}},
+            namespace=NS_SEC,
+            include_metadata=True,
+        )
+        return bool(resp.matches) and resp.matches[0].score > 0.3
+    except Exception:
+        return False
+
+
 # ── Macro trend store ──────────────────────────────────────────────────────────
 
 def save_macro_snapshot(summary: str, metadata: dict) -> bool:

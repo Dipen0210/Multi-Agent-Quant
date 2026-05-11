@@ -2,9 +2,14 @@ from datetime import datetime, timedelta, timezone
 from langchain_core.messages import AIMessage
 from agent.state import AgentState
 from agent.schemas import SECFilingOutput
-from agent.tools.sec_edgar_tool import fetch_recent_filings
+from agent.tools.sec_edgar_tool import fetch_recent_filings, chunk_filing_text
 from agent.tools.finbert_tool import score_headlines
 from agent.tools.keywords import extract_keywords, score_to_decision, score_to_label
+from agent.tools.pinecone_tool import (
+    upsert_sec_chunks,
+    query_sec_for_ticker,
+    has_recent_sec_filing,
+)
 
 _RECENT_DAYS = 30
 
@@ -40,54 +45,94 @@ def _score_sentences(sentences: list[str]) -> tuple[float, str]:
     return agg["score"], agg["label"]
 
 
+_RAG_QUERY = "{ticker} revenue earnings guidance risk factors financial performance"
+
+
+def _ingest_and_store(ticker: str, filing: dict) -> list[dict]:
+    """Chunk a filing, embed it, store in Pinecone, return retrieved chunks."""
+    raw_text = filing.get("text", "")
+    chunks   = chunk_filing_text(raw_text, chunk_size=500, overlap=50)
+    if chunks:
+        upsert_sec_chunks(
+            ticker    = ticker,
+            form      = filing.get("form", "unknown"),
+            date      = filing.get("date", ""),
+            accession = filing.get("accession", ""),
+            chunks    = chunks,
+        )
+    return query_sec_for_ticker(ticker, _RAG_QUERY.format(ticker=ticker))
+
+
 def sec_node(state: AgentState) -> dict:
     ticker = state["ticker"]
 
-    try:
-        filings = fetch_recent_filings(ticker, form_types=["10-Q", "10-K", "8-K"], count=5)
-    except Exception:
-        filings = []
+    # ── 1. RAG: check Pinecone cache first ────────────────────────────────────
+    source = "pinecone-cache"
+    if has_recent_sec_filing(ticker):
+        chunks = query_sec_for_ticker(ticker, _RAG_QUERY.format(ticker=ticker))
+        filing_type = chunks[0]["metadata"].get("form", "unknown") if chunks else "unknown"
+        filing_url  = ""
+    else:
+        # ── 2. Cache miss: fetch from EDGAR, chunk, embed, store ───────────────
+        source = "edgar-live"
+        try:
+            filings = fetch_recent_filings(ticker, form_types=["10-Q", "10-K", "8-K"], count=5)
+        except Exception:
+            filings = []
 
-    # Filter to only recent filings (last 30 days)
-    cutoff = datetime.now(timezone.utc) - timedelta(days=_RECENT_DAYS)
-    recent = [
-        f for f in filings
-        if f.get("date") and datetime.fromisoformat(f["date"].replace("Z","")).replace(tzinfo=timezone.utc) >= cutoff
-    ] if filings else []
-    filings = recent if recent else filings[:1]  # fallback to most recent if none in window
+        cutoff = datetime.now(timezone.utc) - timedelta(days=_RECENT_DAYS)
+        recent = [
+            f for f in filings
+            if f.get("date") and datetime.fromisoformat(f["date"].replace("Z", "")).replace(tzinfo=timezone.utc) >= cutoff
+        ] if filings else []
+        filing = (recent or filings[:1] or [None])[0]
 
-    if not filings:
+        if not filing:
+            output = SECFilingOutput(
+                decision        = "neutral",
+                sentiment_label = "neutral",
+                sentiment_score = 0.5,
+                filing_type     = "none",
+                key_findings    = ["No recent SEC filings found"],
+                keywords        = [],
+                reasoning       = "No SEC filings available for analysis.",
+            )
+            return {
+                "sec_filing": output,
+                "messages":   [AIMessage(content="[SEC Agent] No filings found → neutral")],
+            }
+
+        filing_type = filing.get("form", "unknown")
+        filing_url  = filing.get("url", "")
+        chunks      = _ingest_and_store(ticker, filing)
+
+    if not chunks:
         output = SECFilingOutput(
             decision        = "neutral",
             sentiment_label = "neutral",
             sentiment_score = 0.5,
-            filing_type     = "none",
-            key_findings    = ["No recent SEC filings found"],
+            filing_type     = filing_type,
+            key_findings    = ["Could not extract content from filing"],
             keywords        = [],
-            reasoning       = "No SEC filings available for analysis.",
+            reasoning       = "Filing found but no usable text extracted.",
         )
         return {
             "sec_filing": output,
-            "messages":   [AIMessage(content="[SEC Agent] No filings found → neutral")],
+            "messages":   [AIMessage(content="[SEC Agent] No content extracted → neutral")],
         }
 
-    filing      = filings[0]
-    filing_type = filing.get("form", "unknown")
-    raw_text    = filing.get("text", "")
-
-    # Groq extracts clean financial sentences from raw XBRL/HTML → FinBERT scores them
-    sentences   = _extract_filing_sentences(raw_text)
-    score, label = _score_sentences(sentences)
-    text_for_kw = " ".join(sentences)
-    keywords    = extract_keywords([text_for_kw], n=8)
-    decision    = score_to_decision(score)
-
-    # Key findings = the extracted sentences (already clean English)
-    findings = sentences[:4] if sentences else [raw_text[:100]]
+    # ── 3. Feed retrieved chunks to Groq → extract sentences → FinBERT ───────
+    combined_text = " ".join(c["text"] for c in chunks)
+    sentences     = _extract_filing_sentences(combined_text)
+    score, label  = _score_sentences(sentences)
+    keywords      = extract_keywords([" ".join(sentences)], n=8)
+    decision      = score_to_decision(score)
+    findings      = sentences[:4] if sentences else [combined_text[:200]]
 
     reasoning = (
-        f"Most recent {filing_type} filing — Groq extracted {len(sentences)} financial sentences, "
-        f"scored via FinBERT. Score {score:.2f} ({label}). "
+        f"RAG ({source}): retrieved {len(chunks)} relevant chunks from {filing_type} filing, "
+        f"Groq extracted {len(sentences)} financial sentences, scored via FinBERT. "
+        f"Score {score:.2f} ({label}). "
         f"Key themes: {', '.join(keywords[:4]) if keywords else 'none'}."
     )
 
@@ -96,8 +141,8 @@ def sec_node(state: AgentState) -> dict:
         sentiment_label = label,
         sentiment_score = score,
         filing_type     = filing_type,
-        filing_url      = filing.get("url", ""),
-        key_findings    = findings if findings else [text[:100]],
+        filing_url      = filing_url,
+        key_findings    = findings,
         keywords        = keywords,
         reasoning       = reasoning,
     )
@@ -105,6 +150,6 @@ def sec_node(state: AgentState) -> dict:
     return {
         "sec_filing": output,
         "messages": [AIMessage(
-            content=f"[SEC Agent] {filing_type} → {decision} ({score:.2f}) | keywords: {', '.join(keywords[:3])}"
+            content=f"[SEC Agent] {filing_type} ({source}) → {decision} ({score:.2f}) | keywords: {', '.join(keywords[:3])}"
         )],
     }
