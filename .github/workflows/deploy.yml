@@ -5,10 +5,10 @@ on:
     branches: [main]
 
 env:
-  AWS_REGION:    ${{ secrets.AWS_REGION }}
-  ECR_REGISTRY:  ${{ secrets.ECR_REGISTRY }}
-  ECR_REPO:      quantsentiment
-  IMAGE_TAG:     ${{ github.sha }}
+  AWS_REGION:   ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  ECR_REPO:     quantsentiment
+  IMAGE_TAG:    ${{ github.sha }}
 
 jobs:
   test:
@@ -26,8 +26,6 @@ jobs:
   build-push:
     needs: test
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.build.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,12 +45,10 @@ jobs:
             || aws ecr create-repository --repository-name $ECR_REPO
 
       - name: Build & push Docker image
-        id: build
         run: |
           IMAGE="${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: build-push
@@ -65,9 +61,9 @@ jobs:
           username: ec2-user
           key:      ${{ secrets.EC2_SSH_KEY }}
           script: |
-            IMAGE="${{ needs.build-push.outputs.image }}"
+            IMAGE="${{ secrets.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}"
             aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-              | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+              | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
             docker pull "$IMAGE"
             docker stop quantsentiment 2>/dev/null || true
             docker rm   quantsentiment 2>/dev/null || true
