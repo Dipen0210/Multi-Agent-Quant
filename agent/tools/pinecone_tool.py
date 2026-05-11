@@ -171,7 +171,7 @@ def save_macro_snapshot(summary: str, metadata: dict) -> bool:
     try:
         index = _get_index()
         vector = embed_text(summary)
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
 
         index.upsert(
             vectors=[{

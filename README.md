@@ -38,7 +38,7 @@ A multi-agent AI system that analyses stock sentiment from 5 independent sources
 |---|---|---|
 | **Financial News** | News articles scored by FinBERT | Tavily |
 | **Reddit** | Community sentiment from WSB/stocks/investing | Reddit API |
-| **SEC Filings** | 10-Q/8-K — Groq extracts sentences → FinBERT scores | SEC EDGAR |
+| **SEC Filings** | 10-Q/8-K — RAG pipeline: chunk → embed → Pinecone → retrieve → Groq → FinBERT | SEC EDGAR + Pinecone |
 | **Analyst Ratings** | Institutional consensus + upside-adjusted score | yfinance |
 | **Macro Agent** | VIX, yield, SPY, DXY + global news | Tavily + yfinance + Pinecone |
 | **Portfolio Manager** | Sentiment synthesis → BUY/SELL/HOLD (3/4 agreement) | Groq Llama 3.3 70B |
@@ -137,6 +137,41 @@ cd frontend && npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+---
+
+## SEC Filings — RAG Pipeline
+
+SEC filings (10-Q, 10-K, 8-K) are 50–100 pages — too large to feed directly into an LLM. The SEC agent uses a RAG (Retrieval Augmented Generation) pipeline to handle this:
+
+```
+User hits Analyze
+       ↓
+Fetch latest filing date from SEC EDGAR  (metadata only — fast, no text download)
+       ↓
+Compare with date stored in Pinecone for this ticker
+       ↓
+Same date → retrieve top 6 relevant chunks from Pinecone  (instant cache)
+       ↓
+New date → fetch full filing text → chunk (500 words, 50 overlap)
+         → embed each chunk → delete old chunks → store new in Pinecone
+       ↓
+Similarity search: "revenue earnings guidance risk factors"
+       ↓
+Top 6 chunks → Groq extracts financial sentences → FinBERT scores sentiment
+```
+
+**Why RAG here specifically:**
+- SEC filings exceed LLM context windows — RAG picks only financially relevant paragraphs
+- Filings are stable for a quarter — caching in Pinecone avoids re-embedding the same document
+- Date-based invalidation ensures the cache auto-refreshes when a new filing is published
+
+**Pinecone namespaces used:**
+
+| Namespace | What's stored |
+|---|---|
+| `sec-filings` | Chunked SEC filing embeddings, keyed by ticker |
+| `macro-trend` | Daily macro snapshots (VIX, yield, SPY, DXY) for 14-day trend |
 
 ---
 
