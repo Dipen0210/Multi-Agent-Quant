@@ -61,25 +61,7 @@ def place_order(ticker: str, side: str, qty: int, stop_loss_price: float) -> Tra
     Place a market order on Alpaca paper trading.
     side: 'buy' or 'sell'
     """
-    order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
-
-    req = MarketOrderRequest(
-        symbol=ticker.upper(),
-        qty=qty,
-        side=order_side,
-        time_in_force=TimeInForce.DAY,
-    )
-    order = _get_client().submit_order(req)
-
-    filled_price = float(order.filled_avg_price) if order.filled_avg_price else 0.0
-
-    return TradeExecution(
-        action=side,
-        shares=qty,
-        price=round(filled_price, 2),
-        stop_loss=round(stop_loss_price, 2),
-        order_id=str(order.id),
-    )
+    raise RuntimeError("External execution disabled: V2 is research and simulation only")
 
 
 def skip_trade(reason: str) -> TradeExecution:

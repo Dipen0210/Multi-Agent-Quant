@@ -1,0 +1,23 @@
+{
+  "class_counts": {
+    "negative": 1464,
+    "neutral": 6009,
+    "positive": 3215
+  },
+  "dataset": "Data/dataset.csv",
+  "empty_text_rows": 0,
+  "encoding": "ISO-8859-1 (as used in ModelSelection.ipynb)",
+  "exact_duplicate_rows": 4121,
+  "invalid_column_count_rows": 0,
+  "limitations": [
+    "No source/license/annotator metadata is present in the two-column CSV.",
+    "Duplicates and conflicting labels can invalidate random-row evaluation.",
+    "The original FinBERT split and served-checkpoint linkage are not established by this profile.",
+    "This is legacy training material, not untouched V2 evaluation data."
+  ],
+  "repeated_text_rows": 4637,
+  "rows": 10688,
+  "sha256": "0fbee3502f0130db1798bce8479aed852847d7a98b80ed6941ebf489d77d2fb1",
+  "texts_with_conflicting_labels": 516,
+  "unique_texts": 6051
+}

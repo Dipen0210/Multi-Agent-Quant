@@ -56,3 +56,12 @@ charts/
 # Paper trading logs (generated at runtime)
 paper_trading_logs/
 archive/
+
+# Credentials and V2 local research data
+*.pem
+*.key
+runtime/
+*.sqlite*
+# User-supplied legacy notebook contains an embedded provider credential.
+# Preserve the local original; do not stage it before a separate sanitization.
+/tradingStrategy.ipynb

@@ -1,0 +1,9 @@
+{
+  "dataset_hash": "3b2888992349ebd7906a40ae18fd44ed985d1d61361007555d16c7cb5d64358a",
+  "engine": "baseline",
+  "split": "heldout",
+  "case_accuracy": 1.0,
+  "observed_command": "venv/bin/python -m evaluation.run --scope engineering --output runtime/evaluation/baseline-heldout.json",
+  "ground_truth_status": "provisional authored expectations; not human reviewed",
+  "purpose": "Same-engine baseline regression reference, not generalization evidence."
+}

@@ -1,0 +1,66 @@
+name: V2 engineering validation
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      LANGCHAIN_TRACING_V2: 'false'
+      LANGSMITH_TRACING: 'false'
+      ENABLE_LEGACY_ANALYSIS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+      - name: Unit and API integration checks
+        run: python -m unittest discover -s tests -v
+      - name: Actual API acceptance with labeled fixtures
+        run: python -m scripts.acceptance --output runtime/acceptance.json
+      - name: Engineering evaluation gates
+        run: python -m evaluation.run --scope engineering --output runtime/evaluation/baseline.json
+      - name: Prove invalid citation regression is blocked
+        run: |
+          set +e
+          python -m evaluation.run --scope engineering --inject-fault invalid-citation --output runtime/evaluation/injected-fault.json
+          result=$?
+          set -e
+          test "$result" -eq 1
+          python -c "import json; r=json.load(open('runtime/evaluation/injected-fault.json')); assert not r['engineering_pass']; assert 'invalid_citation_rejected' in r['gate_failures']"
+      - name: Prove same-bar look-ahead regression is blocked
+        run: |
+          set +e
+          python -m evaluation.run --scope engineering --inject-fault lookahead-fill --output runtime/evaluation/lookahead-fault.json
+          result=$?
+          set -e
+          test "$result" -eq 1
+          python -c "import json; r=json.load(open('runtime/evaluation/lookahead-fault.json')); assert 'lookahead_fill_rejected' in r['gate_failures']"
+      - name: Validate restored verifier
+        run: python -m evaluation.run --scope engineering --output runtime/evaluation/restored.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engineering-evaluations
+          path: |
+            runtime/evaluation/
+            runtime/acceptance.json
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend

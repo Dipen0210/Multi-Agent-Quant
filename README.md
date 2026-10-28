@@ -1,206 +1,53 @@
-# QuantSentiment — Multi-Agent AI Trading System
+# QuantSentiment V2 — Financial Research Workspace
 
-A multi-agent AI system that analyses stock sentiment from 5 independent sources and makes paper trading decisions via Alpaca. Built on **LangGraph**, powered by **Groq (Llama 3.3 70B)** and a fine-tuned **FinBERT** model.
+A local research and simulation application built on the existing **FastAPI, Next.js, LangGraph and FinBERT** project. V2 turns timestamped source evidence into inspectable sentiment reports, traces and frozen research experiments.
 
----
+**Status: implementation in progress.** API acceptance and engineering checks have passed locally; human semantic review, visual verification and the final requirement audit remain incomplete. This is not a validated trading strategy. External brokerage orders are disabled.
 
-## Architecture
+## What is implemented
 
-```
-                        ┌─────────────────────────────────────┐
-                        │              ROUTER                 │
-                        └──────────────┬──────────────────────┘
-                                       │ (parallel fan-out)
-          ┌──────────────┬─────────────┼──────────────┬──────────────┐
-          ▼              ▼             ▼               ▼              ▼
-   📰 Financial     💬 Reddit      📋 SEC         ⭐ Analyst     🌐 Macro
-      News           Sentiment     Filings         Ratings        Agent
-          │              │             │               │              │
-          └──────────────┴─────────────┴───────────────┘              │
-                                       │                               │
-                                       ▼                               ▼
-                              💼 Portfolio Manager          🛡️ Risk Manager
-                                       │                               │
-                                       └──────────────┬────────────────┘
-                                                      ▼
-                                               ⚖️ Critic
-                                                      │
-                                                      ▼
-                                          ⚡ Execution (user confirms)
-                                                      │
-                                                      ▼
-                                            Alpaca Paper Trading
+- Immutable document revisions and market observations, UTC/availability checks, bounded JSON/CSV and recorded-provider imports, duplicate groups and frozen datasets.
+- Entity-specific sentiment with exact source spans, conflicting/uncertain/insufficient statuses, a transparent lexical baseline, actual cached FinBERT inference and exact-input replay.
+- Single-pass and staged LangGraph workflows with validated tool outputs, persistent runs, cancellation, bounded retries, recovery, local traces and versioned configurations.
+- Daily long/flat simulation with chronological partitions, next-open timing, fees/spread/slippage, liquidity/cash constraints and reconciled equity curves.
+- Comparisons with cash, passive exposure, direct sentiment and workflow/duplicate-handling ablations; explicit synthetic or limited-metadata validity labels.
+- Versioned diagnostic evaluations, per-class metrics, provisional engineering gates and tests that reject injected citation/look-ahead defects.
+- Integrated research, evidence, traces, experiments, evaluations, configuration and health views.
+
+The fixed universe is AAPL, MSFT and SPY, at daily frequency. Existing legacy provider code is retained, but unvalidated legacy brokerage analytics are excluded from V2.
+
+## Run locally
+
+```sh
+python3 -m venv venv
+venv/bin/python -m pip install -r requirements.txt
+cd frontend && npm ci
 ```
 
-## Agent Roles
+From the project root:
 
-| Agent | Role | Data Source |
-|---|---|---|
-| **Financial News** | News articles scored by FinBERT | Tavily |
-| **Reddit** | Community sentiment from WSB/stocks/investing | Reddit API |
-| **SEC Filings** | 10-Q/8-K — RAG pipeline: chunk → embed → Pinecone → retrieve → Groq → FinBERT | SEC EDGAR + Pinecone |
-| **Analyst Ratings** | Institutional consensus + upside-adjusted score | yfinance |
-| **Macro Agent** | VIX, yield, SPY, DXY + global news | Tavily + yfinance + Pinecone |
-| **Portfolio Manager** | Sentiment synthesis → BUY/SELL/HOLD (3/4 agreement) | Groq Llama 3.3 70B |
-| **Risk Manager** | Safety gates: VIX, SPY crash, position limits | Macro context |
-| **Critic** | Final validation — blocks if confidence < 0.62 AND agreement < 3/4 | Groq Llama 3.3 70B |
-| **Execution** | Surfaces recommendation; user clicks Confirm to place order | Alpaca Paper API |
-
----
-
-## Tech Stack
-
-### AI / ML
-| Layer | Technology |
-|---|---|
-| LLM | Groq — Llama 3.3 70B *(upgradeable to AWS Bedrock — Claude / Llama via managed API)* |
-| Sentiment Model | Fine-tuned FinBERT (`Dipen0210/finbert-finetuned`) |
-| Model Hosting | Hugging Face Spaces (Gradio API) *(upgradeable to AWS SageMaker — dedicated endpoint, no cold starts)* |
-| Agent Framework | LangGraph + LangChain |
-| Observability | LangSmith |
-| Vector Store | Pinecone |
-
-### Data Sources
-| Source | Technology |
-|---|---|
-| News | Tavily Search API |
-| Market Data | yfinance |
-| SEC Filings | SEC EDGAR API |
-| Paper Trading | Alpaca Paper Trading API |
-
-### Backend & Frontend
-| Layer | Technology |
-|---|---|
-| Backend | FastAPI + SSE streaming |
-| Frontend | Next.js 16 + Tailwind CSS + Recharts |
-| MCP Server | FastMCP (Claude Desktop integration) |
-
-### Infrastructure & DevOps
-| Layer | Technology |
-|---|---|
-| Containerisation | Docker |
-| Container Registry | AWS ECR |
-| Compute | AWS EC2 |
-| Reverse Proxy | Nginx (SSE-compatible, no buffering) |
-| CI / CD | GitHub Actions (build → ECR → EC2 deploy on push to main) |
-
----
-## Visuals
-
-<img width="1467" height="740" alt="Screenshot 2026-05-11 at 10 29 10 AM" src="https://github.com/user-attachments/assets/f28004a3-83c8-4005-a6d5-5669e355504e" />
-
-<img width="1470" height="547" alt="Screenshot 2026-05-11 at 10 29 32 AM" src="https://github.com/user-attachments/assets/683a800a-3cb0-45d1-a1cf-7def2827b31e" />
-
-<img width="1470" height="747" alt="Screenshot 2026-05-11 at 10 29 41 AM" src="https://github.com/user-attachments/assets/90015a96-a100-475a-a577-1b13e4205d1e" />
-
-<img width="1470" height="733" alt="Screenshot 2026-05-11 at 10 30 11 AM" src="https://github.com/user-attachments/assets/2f8c9536-cec8-4f23-9729-98bdf07d6664" />
-
-<img width="1470" height="653" alt="Screenshot 2026-05-11 at 10 30 55 AM" src="https://github.com/user-attachments/assets/7aa1857b-779e-47f0-864a-77922f5fbfd0" />
-
-<img width="1470" height="751" alt="Screenshot 2026-05-11 at 10 31 07 AM" src="https://github.com/user-attachments/assets/06f25dc0-fc76-41e2-a88e-f9db07e831e9" />
-
-<img width="1470" height="740" alt="Screenshot 2026-05-11 at 10 31 30 AM" src="https://github.com/user-attachments/assets/5925f8dd-24fc-4ecf-96e6-6b9dd7b5c517" />
-
----
-## Setup
-
-### 1. Clone & install
-
-```bash
-git clone https://github.com/Dipen0210/Multi-Agent-Quant.git
-cd Multi-Agent-Quant
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cd frontend && npm install && cd ..
+```sh
+venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
-### 2. Configure `.env`
+In another terminal:
 
-```env
-STACK=free
-
-GROQ_API_KEY=gsk_...
-
-FINBERT_MODEL=Dipen0210/finbert-finetuned
-HF_API_TOKEN=hf_...
-
-PINECONE_API_KEY=pcsk_...
-PINECONE_INDEX_NAME=default
-
-TAVILY_API_KEY=tvly-...
-
-ALPACA_API_KEY=PK...
-ALPACA_SECRET_KEY=...
-ALPACA_BASE_URL=https://paper-api.alpaca.markets
-
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=ls__...
-LANGCHAIN_PROJECT=quantsentiment-agent
-
-CRITIC_CONFIDENCE_THRESHOLD=0.62
-RISK_MAX_SINGLE_STOCK_PCT=0.10
-RISK_STOP_LOSS_PCT=0.05
+```sh
+cd frontend
+npm run dev -- --hostname 127.0.0.1 --webpack
 ```
 
-### 3. Run
+Open http://127.0.0.1:3000 and load the explicitly synthetic demo. The deterministic mode needs no keys. Actual FinBERT inference requires legitimately available cached model/tokenizer files; missing artifacts produce a failure, not fabricated outputs.
 
-```bash
-# Backend
-uvicorn api.main:app --reload --port 8000
+## Verify
 
-# Frontend (separate terminal)
-cd frontend && npm run dev
+```sh
+venv/bin/python -m unittest discover -s tests -v
+venv/bin/python -m scripts.acceptance --real-model
+venv/bin/python -m evaluation.run --scope engineering
+cd frontend && npm run lint && npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+See [demo and acceptance](docs/DEMO.md), [evaluation evidence](docs/EVALUATION_REPORT.md), [model provenance](docs/MODEL_PROVENANCE.md), [progress](PROGRESS.md), [implementation plan](IMPLEMENTATION_PLAN.md) and [requirement ledger](docs/REQUIREMENTS.md).
 
----
-
-## SEC Filings — RAG Pipeline
-
-SEC filings (10-Q, 10-K, 8-K) are 50–100 pages — too large to feed directly into an LLM. The SEC agent uses a RAG (Retrieval Augmented Generation) pipeline to handle this:
-
-```
-User hits Analyze
-       ↓
-Fetch latest filing date from SEC EDGAR  (metadata only — fast, no text download)
-       ↓
-Compare with date stored in Pinecone for this ticker
-       ↓
-Same date → retrieve top 6 relevant chunks from Pinecone  (instant cache)
-       ↓
-New date → fetch full filing text → chunk (500 words, 50 overlap)
-         → embed each chunk → delete old chunks → store new in Pinecone
-       ↓
-Similarity search: "revenue earnings guidance risk factors"
-       ↓
-Top 6 chunks → Groq extracts financial sentences → FinBERT scores sentiment
-```
-
-**Why RAG here specifically:**
-- SEC filings exceed LLM context windows — RAG picks only financially relevant paragraphs
-- Filings are stable for a quarter — caching in Pinecone avoids re-embedding the same document
-- Date-based invalidation ensures the cache auto-refreshes when a new filing is published
-
-**Pinecone namespaces used:**
-
-| Namespace | What's stored |
-|---|---|
-| `sec-filings` | Chunked SEC filing embeddings, keyed by ticker |
-| `macro-trend` | Daily macro snapshots (VIX, yield, SPY, DXY) for 14-day trend |
-
----
-
-## Signal Logic
-
-**BUY** — ≥ 3/4 sources bullish, confidence ≥ 0.62, Risk Manager approves, user confirms
-
-**SELL** — ≥ 3/4 sources bearish, position held in Alpaca, user confirms
-
-**HOLD** — everything else (conflict, low conviction, portfolio limit hit)
-
----
-
-## Portfolio Analytics
-
-Visit `/analytics` for equity chart (1W/1M/3M), open positions, trade history, and win rate.
+[The original README and legacy screenshots](docs/LEGACY_README.md) and PROJECT_MAP.md are historical context, not current capability evidence. No production deployment, profitable return, calibrated confidence or multi-agent superiority is claimed.

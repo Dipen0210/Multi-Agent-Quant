@@ -1,25 +1,22 @@
-FROM python:3.11-slim
-
+FROM python:3.13-slim
 WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl \
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
-
-# Install CPU-only torch first (prevents downloading CUDA variant)
-RUN pip install --no-cache-dir \
-    torch>=2.4.0 \
-    --extra-index-url https://download.pytorch.org/whl/cpu
-
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+# CPU wheels; quote version specifiers so the shell cannot treat them as redirection.
+RUN pip install --no-cache-dir 'torch==2.11.0' --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt
 COPY . .
-
-# Pre-download fine-tuned FinBERT so first request isn't slow
-ARG FINBERT_MODEL=Dipen0210/finbert-finetuned
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='${FINBERT_MODEL}', device=-1)" || true
-
+RUN useradd --create-home research \
+    && mkdir -p /app/runtime \
+    && chown research:research /app/runtime
+USER research
+ENV RESEARCH_DB=/app/runtime/research.sqlite3 \
+    ENABLE_LEGACY_ANALYSIS=false \
+    LANGCHAIN_TRACING_V2=false \
+    LANGSMITH_TRACING=false \
+    HF_HUB_OFFLINE=1
+# Model weights are not downloaded or silently substituted during image build.
+# For local use publish only: -p 127.0.0.1:8000:8000
 EXPOSE 8000
-
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

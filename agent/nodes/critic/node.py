@@ -135,13 +135,13 @@ def critic_node(state: AgentState) -> dict:
 
     # ── Final decision ────────────────────────────────────────────────────────
     confidence_ok = confidence >= CONFIDENCE_THRESHOLD
-    agreement_ok  = total == 0 or agree >= min_agree
+    agreement_ok  = total >= 3 and agree >= min_agree
     # Both gates must pass — low confidence alone or low agreement alone is not enough
-    critical = not confidence_ok and not agreement_ok
+    critical = not confidence_ok or not agreement_ok or risk is None
 
     if critical or signal == "HOLD":
         reason = (
-            f"Confidence {confidence:.2f} < {CONFIDENCE_THRESHOLD} and agreement {agreement_str} too low"
+            f"Confidence {confidence:.2f} < {CONFIDENCE_THRESHOLD} or agreement {agreement_str} insufficient (risk approval required)"
             if critical else
             f"Portfolio Manager signal is HOLD"
         )

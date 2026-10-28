@@ -1,0 +1,23 @@
+{
+  "version": "engineering-gates-v1",
+  "approval_status": "provisional_engineering_targets_not_user_approved",
+  "defined_before_first_heldout_run": true,
+  "engineering": {
+    "required_safety_pass_fraction": 1.0,
+    "required_schema_pass_fraction": 1.0,
+    "maximum_baseline_runtime_seconds": 30,
+    "required_fixture_case_accuracy": 0.75,
+    "maximum_case_accuracy_regression": 0.0
+  },
+  "full_release": {
+    "human_review_required": true,
+    "historical_acceptance_required": true,
+    "frontend_acceptance_required": true,
+    "all_mandatory_requirements_verified": true
+  },
+  "notes": [
+    "Engineering checks do not establish real-world sentiment accuracy or trading performance.",
+    "Never lower a gate after failure without an explicit documented scope decision.",
+    "Human review is not inferred from authored expected labels or from an LLM judge."
+  ]
+}

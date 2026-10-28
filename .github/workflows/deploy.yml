@@ -1,8 +1,13 @@
 name: Deploy to EC2
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Explicitly deploy legacy AWS hosting (outside V2 acceptance)'
+        type: boolean
+        required: true
+        default: false
 
 env:
   AWS_REGION:   ${{ secrets.AWS_REGION }}
@@ -20,10 +25,13 @@ jobs:
           python-version: "3.11"
       - name: Install deps
         run: pip install --no-cache-dir -r requirements.txt
-      - name: Smoke test imports
-        run: python -c "from api.main import app; print('imports ok')"
+      - name: V2 regression checks
+        run: python -m unittest discover -s tests -v
+      - name: V2 engineering gates
+        run: python -m evaluation.run --scope engineering
 
   build-push:
+    if: inputs.deploy == true
     needs: test
     runs-on: ubuntu-latest
     steps:

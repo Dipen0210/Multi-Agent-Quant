@@ -1,0 +1,22 @@
+.git
+.env
+.env.*
+*.pem
+*.key
+.aws
+.codex
+.agents
+venv
+.venv
+frontend/node_modules
+frontend/.next
+__pycache__
+*.pyc
+runtime
+*.sqlite*
+*.log
+.DS_Store
+frontend/.next-verify
+frontend/.next-v2-preview
+# Research notebooks are not runtime dependencies and may contain credentials.
+*.ipynb

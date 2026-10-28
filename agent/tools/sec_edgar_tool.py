@@ -162,6 +162,8 @@ def _fetch_filing_text(url: str, max_chars: int = 3000) -> str:
 
 def chunk_filing_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
     """Split long filing text into overlapping chunks for embedding."""
+    if chunk_size <= 0 or overlap < 0 or overlap >= chunk_size:
+        raise ValueError("Require chunk_size > overlap >= 0")
     words  = text.split()
     chunks = []
     start  = 0

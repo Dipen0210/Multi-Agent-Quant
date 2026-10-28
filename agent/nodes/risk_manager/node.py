@@ -20,16 +20,16 @@ def _get_portfolio_value() -> float:
         from agent.tools.alpaca_tool import get_account
         acct = get_account()
         return acct["portfolio_value"]
-    except Exception:
-        return DEFAULT_PORTFOLIO
+    except Exception as exc:
+        raise ValueError("Portfolio value unavailable") from exc
 
 
 def _get_exposure(ticker: str) -> float:
     try:
         from agent.tools.alpaca_tool import get_portfolio_exposure
         return get_portfolio_exposure(ticker)
-    except Exception:
-        return 0.0
+    except Exception as exc:
+        raise ValueError("Portfolio exposure unavailable") from exc
 
 
 def _macro_safety_scale(macro) -> float:
@@ -60,6 +60,9 @@ def risk_manager_node(state: AgentState) -> dict:
     macro  = state.get("macro_context")
     flags: list[str] = []
 
+    if macro is None:
+        return _veto(ticker, "Required macro evidence unavailable", flags)
+
     # ── Hard veto checks: is it safe to trade today? ──────────────────────────
     if macro:
         if macro.vix >= VIX_VETO_THRESHOLD:
@@ -88,7 +91,14 @@ def risk_manager_node(state: AgentState) -> dict:
             flags.append(f"{macro.consecutive_risk_off_days} consecutive risk-off days")
 
     # ── Portfolio exposure check ───────────────────────────────────────────────
-    exposure = _get_exposure(ticker)
+    try:
+        exposure = _get_exposure(ticker)
+        portfolio_val = _get_portfolio_value()
+        price = get_current_price(ticker)
+        if not all(math.isfinite(v) for v in (exposure, portfolio_val, price)) or not (0 <= exposure <= 1) or min(portfolio_val, price) <= 0:
+            raise ValueError("Invalid required portfolio/price input")
+    except Exception:
+        return _veto(ticker, "Required portfolio or price input unavailable or invalid", flags)
     if exposure >= MAX_SINGLE_STOCK_PCT:
         return _veto(
             ticker,
@@ -97,14 +107,14 @@ def risk_manager_node(state: AgentState) -> dict:
         )
 
     # ── Position sizing ────────────────────────────────────────────────────────
-    portfolio_val   = _get_portfolio_value()
-    price           = get_current_price(ticker)
-    max_position_val = portfolio_val * MAX_SINGLE_STOCK_PCT
+    max_position_val = portfolio_val * max(0.0, MAX_SINGLE_STOCK_PCT - exposure)
     raw_shares      = math.floor(max_position_val / price) if price > 0 else 0
 
     # Scale by market safety — not by stock sentiment
     safety_scale    = _macro_safety_scale(macro)
-    adjusted_shares = max(1, math.floor(raw_shares * safety_scale))
+    adjusted_shares = math.floor(raw_shares * safety_scale)
+    if adjusted_shares <= 0:
+        return _veto(ticker, "Insufficient remaining capacity for one share", flags)
     stop_loss_price = round(price * (1 - STOP_LOSS_PCT), 2)
 
     vix_str  = f"VIX={macro.vix}" if macro else "VIX=N/A"

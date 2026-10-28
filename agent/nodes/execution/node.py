@@ -6,34 +6,7 @@ from agent.tools.yfinance_tool import get_current_price
 
 
 def execution_node(state: AgentState) -> dict:
-    critic    = state.get("critic_decision")
-    risk      = state.get("risk_decision")
-    portfolio = state.get("portfolio_signal")
-
-    if not critic or critic.decision != "PROCEED":
-        return _result(skip_trade("Critic did not approve"))
-
-    signal = portfolio.signal if portfolio else "HOLD"
-    if signal not in ("BUY", "SELL"):
-        return _result(skip_trade(f"Signal is {signal} — no trade needed"))
-
-    # Trade is ready but waits for user confirmation via the frontend button
-    ticker    = state["ticker"]
-    stop_loss = risk.stop_loss_price if risk else 0.0
-    shares    = risk.adjusted_size   if risk else 0
-
-    if shares <= 0:
-        return _result(skip_trade("Position size is 0 — nothing to execute"))
-
-    price = get_current_price(ticker)
-    from agent.schemas import TradeExecution
-    return _result(TradeExecution(
-        action=signal.lower(),
-        shares=shares,
-        price=price,
-        stop_loss=stop_loss,
-        skipped_reason="awaiting_user_confirmation",
-    ))
+    return _result(skip_trade("External execution disabled: V2 research only"))
 
 
 def _execute_buy(ticker: str, shares: int, stop_loss: float) -> dict:

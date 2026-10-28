@@ -1,3 +1,5 @@
+> Historical planning document. It is not a verified description of V2. See IMPLEMENTATION_PLAN.md, PROGRESS.md and docs/REQUIREMENTS.md for current scope and evidence.
+
 # QuantSentiment Agent — Final Project Map
 
 ---

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "QuantSentiment — Multi-Agent Financial Analysis",
-  description: "6-agent AI system for financial reasoning: News, Technical, Macro, Risk, Portfolio, Critic",
+  title: "QuantSentiment — Research Workspace",
+  description: "Evidence-grounded financial research with inspectable sources, uncertainty, and agent traces.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

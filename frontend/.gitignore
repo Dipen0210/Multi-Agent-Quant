@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Isolated local verification/preview builds
+/.next-verify/
+/.next-v2-preview/

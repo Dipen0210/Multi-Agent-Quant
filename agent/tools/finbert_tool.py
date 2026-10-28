@@ -29,7 +29,7 @@ def _get_pipeline():
 
 def score_headlines(headlines: list[str]) -> dict:
     """
-    Score headlines using local FinBERT (ProsusAI/finbert).
+    Score texts with the configured local FinBERT model.
     Returns {results, aggregate} dict.
     aggregate.score: 0.0 (bearish) → 0.5 (neutral) → 1.0 (bullish)
     """
@@ -40,14 +40,14 @@ def score_headlines(headlines: list[str]) -> dict:
     if not headlines:
         return neutral
 
-    # Truncate to 512 chars per headline (FinBERT context limit)
-    texts = [h[:512] for h in headlines]
+    # Let the tokenizer enforce the model token limit, not an arbitrary character limit.
+    texts = headlines
 
     try:
         pipe = _get_pipeline()
-        raw_results = pipe(texts)
-    except Exception:
-        return {**neutral, "aggregate": {**neutral["aggregate"], "headline_count": len(headlines)}}
+        raw_results = pipe(texts, truncation=True, max_length=512)
+    except Exception as exc:
+        raise RuntimeError("FinBERT inference failed; no sentiment result available") from exc
 
     results = []
     net_scores = []
@@ -55,6 +55,8 @@ def score_headlines(headlines: list[str]) -> dict:
 
     for text, probs in zip(texts, raw_results):
         prob_map = {p["label"]: p["score"] for p in probs}
+        if set(prob_map) != {"positive", "negative", "neutral"}:
+            raise ValueError("Unsupported FinBERT label mapping")
         pos = prob_map.get("positive", 0.0)
         neg = prob_map.get("negative", 0.0)
         neu = prob_map.get("neutral", 0.0)

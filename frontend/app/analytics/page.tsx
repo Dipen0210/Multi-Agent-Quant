@@ -45,10 +45,10 @@ function MetricCard({ label, value, sub }: { label: string; value: React.ReactNo
   );
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: readonly { value?: number | string }[]; label?: string | number }) => {
   if (!active || !payload?.length) return null;
-  const equity = payload[0]?.value;
-  const pl     = payload[1]?.value;
+  const equity = Number(payload[0]?.value ?? 0);
+  const pl     = payload[1]?.value === undefined ? undefined : Number(payload[1].value);
   return (
     <div className="rounded-lg border border-slate-700 bg-slate-900 p-3 text-xs">
       <p className="text-slate-400 mb-1">{label}</p>
@@ -69,11 +69,12 @@ export default function AnalyticsPage() {
   const [error, setError]     = useState('');
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`${API_URL}/analytics?period=${period}`)
-      .then(r => r.json())
+    const controller = new AbortController();
+    fetch(`${API_URL}/analytics?period=${period}`, { signal: controller.signal })
+      .then(r => { if (!r.ok) throw new Error('Analytics unavailable'); return r.json(); })
       .then(d => { setData(d); setLoading(false); })
-      .catch(() => { setError('Failed to load analytics'); setLoading(false); });
+      .catch(() => { if (!controller.signal.aborted) { setError('Failed to load analytics'); setLoading(false); } });
+    return () => controller.abort();
   }, [period]);
 
   const isUp = (data?.metrics.total_pl ?? 0) >= 0;
@@ -123,7 +124,7 @@ export default function AnalyticsPage() {
               <h2 className="text-sm font-semibold text-slate-300">Portfolio Value</h2>
               <div className="flex gap-1">
                 {(['1W', '1M', '3M'] as const).map(p => (
-                  <button key={p} onClick={() => setPeriod(p)}
+                  <button key={p} onClick={() => { setLoading(true); setError(''); setPeriod(p); }}
                     className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                       period === p ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
                     }`}>
