@@ -8,6 +8,9 @@ from pydantic import Field
 from research.contracts import Contract, SnapshotRequest, UNIVERSE
 from research.importers import parse_csv
 from api.responses import RunResponse, RunList, StepList, ToolList
+from api.data_responses import (InstrumentList, ImportReceipt, DemoReceipt, EvidenceList,
+    DocumentResponse, SourceHealthResponse, ConfigurationResponse, ConfigurationList, ConfigurationActivation)
+from research.reports import ReportSnapshot
 from research.report_validation import validate_report_sources
 
 router = APIRouter(prefix='/api')
@@ -27,19 +30,19 @@ class ImportRequest(Contract):
     market: list[dict] = Field(default_factory=list,max_length=500)
 
 
-@router.get('/instruments')
+@router.get('/instruments',response_model=InstrumentList)
 def instruments():
     return {'items':[{'id':key,**value} for key,value in UNIVERSE.items()],
             'universe_policy':'Fixed AAPL/MSFT/SPY universe; current constituents; survivorship bias applies.',
             'frequency':'daily','timezone':'America/New_York'}
 
 
-@router.post('/imports')
+@router.post('/imports',response_model=ImportReceipt)
 def import_data(payload: ImportRequest, request: Request):
     return request.app.state.store.import_records(payload.documents,payload.market)
 
 
-@router.post('/imports/csv/{kind}')
+@router.post('/imports/csv/{kind}',response_model=ImportReceipt)
 async def import_csv(kind: Literal['documents','market'], request: Request):
     try:
         rows = parse_csv((await request.body()).decode('utf-8'),kind)
@@ -48,37 +51,37 @@ async def import_csv(kind: Literal['documents','market'], request: Request):
     return request.app.state.store.import_records(**{kind:rows})
 
 
-@router.post('/demo/import')
+@router.post('/demo/import',response_model=DemoReceipt)
 def demo_import(request: Request):
     data=json.loads((Path(__file__).parents[1]/'research/fixtures/demo.json').read_text())
     return request.app.state.store.import_records(data['documents'],data['market']) | {'mode':'synthetic','description':data['description']}
 
 
-@router.get('/evidence')
+@router.get('/evidence',response_model=EvidenceList)
 def evidence(request: Request, limit: int = Query(default=100,ge=1,le=500)):
     return {'documents':request.app.state.store.records('documents',limit),
             'market':request.app.state.store.records('market',limit)}
 
 
-@router.get('/evidence/{document_id}')
+@router.get('/evidence/{document_id}',response_model=DocumentResponse)
 def document(document_id: str, request: Request):
     return request.app.state.store.document(document_id)
 
 
-@router.post('/snapshots')
+@router.post('/snapshots',response_model=ReportSnapshot)
 def snapshot(payload: SnapshotRequest, request: Request):
     return request.app.state.store.snapshot(payload)
 
 
-@router.get('/snapshots/{snapshot_id}')
+@router.get('/snapshots/{snapshot_id}',response_model=ReportSnapshot)
 def get_snapshot(snapshot_id: str, request: Request):
     return request.app.state.store.get_snapshot(snapshot_id)
 
 
-@router.get('/source-health')
-def source_health(request: Request):
+@router.get('/source-health',response_model=SourceHealthResponse)
+def source_health(request: Request, limit: int = Query(default=100,ge=1,le=100), offset: int = Query(default=0,ge=0,le=1000000)):
     with request.app.state.store.connect() as conn:
-        rows=conn.execute('SELECT provider,max(available_at) latest_available_at,max(ingested_at) latest_import_at,count(*) records FROM documents GROUP BY provider').fetchall()
+        rows=conn.execute("SELECT provider,'documents' kind,max(available_at) latest_available_at,max(ingested_at) latest_import_at,count(*) records FROM documents GROUP BY provider UNION ALL SELECT provider,'market' kind,max(available_at),max(ingested_at),count(*) FROM market GROUP BY provider ORDER BY provider,kind LIMIT ? OFFSET ?",(limit,offset)).fetchall()
         rejects=conn.execute('SELECT count(*) FROM rejections').fetchone()[0]
     return {'sources':[dict(r) for r in rows],'rejected_records':rejects,
             'live_adapters':'not validated','freshness_policy':'Compare source availability with the selected cutoff; no live freshness claim.'}
@@ -88,20 +91,20 @@ from research.jobs import RunRequest
 from research.configuration import Configuration, register, activate
 
 
-@router.get('/configurations')
-def configurations(request: Request):
+@router.get('/configurations',response_model=ConfigurationList)
+def configurations(request: Request, limit: int = Query(default=100,ge=1,le=100), offset: int = Query(default=0,ge=0,le=1000000)):
     with request.app.state.store.connect() as c:
-        rows=c.execute('SELECT * FROM configurations ORDER BY created_at DESC').fetchall()
+        rows=c.execute('SELECT * FROM configurations ORDER BY created_at DESC,id LIMIT ? OFFSET ?',(limit,offset)).fetchall()
         active=c.execute('SELECT configuration_id FROM active_configuration WHERE singleton=1').fetchone()[0]
     return {'items':[dict(r)|{'data':json.loads(r['data'])} for r in rows],'active_configuration_id':active}
 
 
-@router.post('/configurations')
+@router.post('/configurations',response_model=ConfigurationResponse)
 def create_configuration(payload: Configuration, request: Request):
     return register(request.app.state.store,payload)
 
 
-@router.post('/configurations/{configuration_id}/activate')
+@router.post('/configurations/{configuration_id}/activate',response_model=ConfigurationActivation)
 def activate_configuration(configuration_id: str, request: Request):
     return activate(request.app.state.store,configuration_id)
 
@@ -226,7 +229,7 @@ class RecordedImport(Contract):
         return self
 
 
-@router.post('/imports/recorded')
+@router.post('/imports/recorded',response_model=ImportReceipt)
 def recorded_import(payload: RecordedImport, request: Request):
     values=[];rejected=[]
     for index,raw in enumerate(payload.records):

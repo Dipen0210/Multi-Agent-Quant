@@ -2,6 +2,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from copy import deepcopy
 from fastapi.testclient import TestClient
 from api.main import app
 
@@ -47,3 +48,40 @@ class DataAPITests(unittest.TestCase):
         self.assertEqual(result.json()['inserted'],1)
         self.assertEqual(len(result.json()['rejected']),1)
         self.assertEqual(self.client.get('/api/source-health').json()['rejected_records'],1)
+
+    def test_data_responses_reject_corrupted_identity_without_echoing_source(self):
+        imported=self.client.post('/api/demo/import',json={}).json()
+        ident=imported['document_ids'][0]
+        original=self.client.app.state.store.document(ident)
+        for field,value in [('content_hash','a'*64),('provider','wrong-provider')]:
+            with self.subTest(field=field):
+                corrupted=deepcopy(original);corrupted[field]=value
+                with patch.object(self.client.app.state.store,'document',return_value=corrupted):
+                    response=self.client.get('/api/evidence/'+ident)
+                self.assertEqual(response.status_code,500)
+                self.assertEqual(response.json()['error']['code'],'invalid_response')
+                self.assertNotIn(original['data']['content'],response.text)
+
+    def test_receipt_count_and_configuration_hash_are_validated(self):
+        with patch.object(self.client.app.state.store,'import_records',return_value={
+            'batch_id':'00000000-0000-0000-0000-000000000000','inserted':5,'duplicates':0,
+            'rejected':[],'document_ids':[],'market_ids':[]}):
+            self.assertEqual(self.client.post('/api/imports',json={}).status_code,500)
+        response=self.client.post('/api/configurations',json={'name':'Valid configuration'})
+        response.raise_for_status()
+        corrupted=response.json();corrupted['id']='a'*64
+        with patch('api.research_routes.register',return_value=corrupted):
+            invalid=self.client.post('/api/configurations',json={})
+        self.assertEqual(invalid.status_code,500)
+        self.assertEqual(invalid.json()['error']['code'],'invalid_response')
+
+    def test_source_health_includes_market_and_configuration_lists_are_bounded(self):
+        self.client.post('/api/demo/import',json={}).raise_for_status()
+        response=self.client.get('/api/source-health');response.raise_for_status()
+        self.assertEqual({item['kind'] for item in response.json()['sources']},{'documents','market'})
+        self.assertEqual(len(self.client.get('/api/source-health?limit=1').json()['sources']),1)
+        self.assertEqual(self.client.get('/api/source-health?limit=101').status_code,422)
+        configs=self.client.get('/api/configurations?limit=1');configs.raise_for_status()
+        self.assertEqual(len(configs.json()['items']),1)
+        self.assertEqual(self.client.get('/api/configurations?limit=101').status_code,422)
+        self.assertEqual(self.client.get('/api/configurations?offset=-1').status_code,422)

@@ -58,3 +58,9 @@ Minimal tracing and test infrastructure start in P0/P1. Independent work may pro
 - Validate final nested findings and reconcile reports against frozen source/market/configuration data before persistence and on API reads. Internal consistency alone cannot establish numerical grounding. Return a sanitized server error for corrupt stored reports.
 - Keep individual tool records in a new migration rather than pretending a single graph-node record captures every call. Preserve interrupted attempts and record subsequent attempts separately. The simpler graph remains the default; tracing does not require extra autonomous agents.
 - Apply nested remaining-time budgets to inference retries. A retry may use leftover parent time; it cannot allocate a fresh step budget. Keep deterministic local calls bounded and disclose cooperative rather than preemptive cancellation for those short operations.
+
+## Data-response checkpoint — 2026-10-29
+
+- Validate evidence content/envelope identity, market metadata, import receipt counts, frozen snapshots and configuration hashes at response boundaries. Include document and market providers in bounded source-health queries.
+- Current typed response coverage is 20/29 V2 routes. Next: dataset/study/result and release-state contracts; see `docs/audits/API_CONTRACT_AUDIT.md`. Do not weaken the requirement with unvalidated dictionary wrappers.
+- CP001 is committed locally; pushing was rejected twice by automatic approval review despite verified owner/ADMIN access. The user requested localhost review in response to the publication-approval question. Publishing remains pending explicit approval; continue local implementation and commits. See `docs/maintenance/CHECKPOINTS.md`.

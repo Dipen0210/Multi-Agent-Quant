@@ -2,6 +2,15 @@
 
 Environment snapshot: `docs/ENVIRONMENT.json`. All figures below are observed local results, not production or financial performance claims.
 
+## Latest checks — data response checkpoint, 2026-10-29
+
+- `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: 68 passed in 38.493 s, no skips; includes actual local inference, exact replay and historical model integration. Log: `runtime/verification/data-response-tests.log`.
+- `venv/bin/python -m scripts.acceptance --real-model --output runtime/acceptance-real.json`: all 16 checks passed. Backend hash: `ec21a1bd5073b2d74405150f7e63dad64f15adf1a8b36962200a892f304daec8`.
+- Focused data API suite: 6 passed in 0.762 s. Frontend lint and `NEXT_DIST_DIR=.next-verify npm run build` exited 0 after the source-health display change.
+- Read-only HTTP checks of the local preview returned 200 for the frontend, API health, source-health and OpenAPI; external execution false. Visual interaction remains unverified. Remote push/CI remains blocked by publication approval.
+
+See `audits/API_CONTRACT_AUDIT.md` for response validation scope and remaining routes. The prior results below are historical, not the latest backend identity.
+
 ## Latest checks — 2026-10-28
 
 - `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: all 64 passed in 43.558 s, none skipped. Includes actual local inference, exact replay and model-backed historical research, plus eight new report/trace boundary cases. Retained log: `runtime/verification/report-trace-tests.log`.

@@ -1,10 +1,10 @@
 # V2 progress
 
-Updated 2026-10-28. Overall: **IN PROGRESS**. The full specification remains in scope; passing engineering checks do not establish full acceptance. This continuation made code, verification and provenance-audit progress.
+Updated 2026-10-29. Overall: **IN PROGRESS**. The full specification remains in scope; passing engineering checks do not establish full acceptance. This continuation made code, verification and provenance-audit progress.
 
 ## Added delivery requirements
 
-The user now explicitly requests a commit and push at each major checkpoint to `https://github.com/Dipen0210/Multi-Agent-Quant`, final file organization/removal of redundant or dead code, and preparation for a later PRD. Work will use `codex/quantsentiment-v2`, preserve upstream commits and avoid force pushes or premature merges into main. Publication of code checkpoints is authorized; deployment/live trading are not.
+The user now explicitly requests a commit and push at each major checkpoint to `https://github.com/Dipen0210/Multi-Agent-Quant`, final file organization/removal of redundant or dead code, and preparation for a later PRD. Work will use `codex/quantsentiment-v2`, preserve upstream commits and avoid force pushes or premature merges into main. The user requested checkpoint publication, but automatic approval review rejected the actual push and requires explicit payload approval. The user requested a local preview in response; publication remains pending. Deployment/live trading are not authorized.
 
 Final cleanup is required and unfinished: `docs/maintenance/CLEANUP_PLAN.md` inventories areas requiring dependency/reference checks before removal. `docs/product/PRODUCT_NOTES.md` collects factual scope, decisions, evidence and open items for the future PRD; it is not the final PRD. `docs/README.md` indexes the documentation.
 
@@ -22,18 +22,16 @@ Checkpoint preparation also found that one baseline API test used the normal run
 
 ## Latest observed verification
 
-Environment: `docs/ENVIRONMENT.json`; actual local Python environment and installed frontend dependencies. Results are command evidence, not deployment claims.
+Environment: `docs/ENVIRONMENT.json`. CP002 data response increment:
 
-| Command | Observed result |
-|---|---|
-| `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v` | 64 tests passed in 43.558 s; none skipped. Includes actual local model/replay and historical inference. Log `runtime/verification/report-trace-tests.log`. |
-| `venv/bin/python -m unittest discover -s tests -p test_report_contracts.py -v` | Subsequent focused run: 9 passed in 1.840 s, including an additional SQLite trace-write fault test. No application-code change after the 64-test run. |
-| `venv/bin/python -m scripts.acceptance --real-model --output runtime/acceptance-real.json` | Exit 0; all 16 checks passed, with individual-tool trace completeness required and actual inference. Code hash matches current backend: `a6c0d55d6fcb33b03b3bbd4a395a27d443430b6e6d57d09f1099e156d3cc5eb0`. |
-| `cd frontend && npm run lint` | Exit 0. |
-| `cd frontend && NEXT_DIST_DIR=.next-verify npm run build` | Exit 0; webpack production compilation, TypeScript and static generation passed. |
-| `venv/bin/python -m scripts.audit_training_data` | Read-only profile captured in `docs/audits/TRAINING_DATA_PROFILE.json`; no training/inference performed. |
+- `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: 68 passed in 38.493 s, no skips. Log: `runtime/verification/data-response-tests.log`.
+- `venv/bin/python -m scripts.acceptance --real-model --output runtime/acceptance-real.json`: 16/16 passed; backend hash `ec21a1bd5073b2d74405150f7e63dad64f15adf1a8b36962200a892f304daec8`.
+- Focused `test_api_data.py`: 6 passed in 0.762 s. Frontend lint and isolated webpack production build passed.
+- Local frontend and API returned HTTP 200 on October 29; external execution false. HTTP/build checks do not verify browser interaction.
 
-The default suite previously passed with its two explicit real-model skips. The latest command enabled both actual-model tests and passed all 64. Synthetic fixtures, mocked provider-failure/cancellation scenarios and actual inference remain distinguished. Command receipt: `runtime/verification/report-trace-checks.json`.
+Data, import, source-health and configuration responses now validate nested contracts and immutable identity; source health includes market records. 20/29 `/api` routes declare response schemas. Dataset, study/result and release-state contracts remain incomplete. See `docs/audits/API_CONTRACT_AUDIT.md` and `docs/maintenance/CHECKPOINTS.md`.
+
+CP001 is local commit `58f6b1c`; CP002 is being committed locally. Nothing has been pushed. The original report/trace evidence remains in `docs/EVALUATION_REPORT.md`.
 
 ## Changes in this continuation
 
@@ -67,6 +65,6 @@ The default suite previously passed with its two explicit real-model skips. The 
 
 The user asked why two semantic cases differ and supplied both notebooks. Neither response approves labels or release gates. Outstanding provenance is narrowed to data origin/rights, weights licensing, training split/checkpoint linkage and historical cutoff; do not ask again for the identified base model.
 
-Computer Use previously requested Accessibility/Screen Recording access. Do not retry without explicit authorization. User-supplied screenshots may support visual review; no screen permission is needed for code work. Preview services were started on 8001/3001, separate from existing 8000/3000. Backend session 94347 was confirmed live this turn but has not been restarted with the latest code/migration; do not mistake its old process for current-code verification. Inspect/restart only an identified task-owned preview process before using it for the new trace UI. Current-code acceptance uses isolated TestClient instances.
+Computer Use previously requested Accessibility/Screen Recording access. Do not retry without explicit authorization. User-supplied screenshots may support visual review; no screen permission is needed for code work. Preview services were started on 8001/3001, separate from existing 8000/3000. Backend was refreshed with CP002 code and migrations (session 50786); frontend session 98423. Dedicated preview database: `runtime/browser-demo.sqlite3`. Read-only HTTP checks passed. Inspect process identity and active jobs before any later preview restart. Automated acceptance uses isolated TestClient instances.
 
 No deployment, real orders, weight redistribution or remote CI success is claimed. Full goal stays active and incomplete while independent technical audit work continues.

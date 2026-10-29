@@ -15,5 +15,7 @@ Start with [current progress](../PROGRESS.md) and the [implementation plan](../I
 | Pending human label review | [Semantic review](SEMANTIC_REVIEW.md) |
 | Facts for the future PRD | [Product notes](product/PRODUCT_NOTES.md) |
 | Required final cleanup | [Cleanup plan](maintenance/CLEANUP_PLAN.md) |
+| API contract coverage and gaps | [API contract audit](audits/API_CONTRACT_AUDIT.md) |
+| Local commits and push approval | [Checkpoints](maintenance/CHECKPOINTS.md) |
 
 Historical context: [legacy README](LEGACY_README.md) and [old project map](../PROJECT_MAP.md). These are not evidence of current V2 functionality. Local credentials, source notebooks containing keys, runtime databases, model weights, caches and raw test artifacts are not checkpoint publication inputs.
