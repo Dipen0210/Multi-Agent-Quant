@@ -29,3 +29,7 @@ Keep application packages under `api/`, `research/` and `frontend/`; evaluations
 4. Backend, real-model integration where available, frontend checks and end-to-end acceptance pass after affected changes.
 5. No accidental secrets, notebooks with credentials, databases, weights, generated builds or unrelated screenshots in the commit.
 6. Checkpoint commit pushed normally to the authorized repository; remote result verified. A clean Git status must not be achieved by deleting user data or hiding unfinished tracked changes.
+
+## Incremental organization already performed
+
+Frozen dataset contracts/storage moved from `research/experiments.py` into `research/datasets.py`. Existing experiment-module import paths remain available. Removed four unused imports from the experiment module after reference checks; no executable legacy features or user artifacts were deleted. This localized change does not complete the final repository-wide cleanup.

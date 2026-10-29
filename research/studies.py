@@ -5,7 +5,8 @@ import uuid
 from typing import Literal
 from pydantic import Field
 from research.contracts import Contract
-from research.experiments import ExperimentRequest, get_dataset, run_experiment
+from research.experiments import ExperimentRequest, run_experiment
+from research.datasets import get_dataset
 from research.models import Cancelled
 from research.store import canonical,digest,now
 from evaluation.suite import run_suite,persist

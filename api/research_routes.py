@@ -146,23 +146,24 @@ def tools(run_id: str, request: Request, limit: int = Query(default=300,ge=1,le=
     return {'items':request.app.state.jobs.tool_calls(run_id,limit,offset)}
 
 
-from research.experiments import DatasetRequest, ExperimentRequest, freeze_dataset, get_dataset
+from research.experiments import ExperimentRequest
+from research.datasets import DatasetRequest, DatasetResponse, DatasetList, freeze_dataset, get_dataset
 from research.studies import EvaluationRequest
 
 
-@router.post('/datasets')
+@router.post('/datasets',response_model=DatasetResponse)
 def create_dataset(payload: DatasetRequest, request: Request):
     return freeze_dataset(request.app.state.store,payload)
 
 
-@router.get('/datasets')
-def datasets(request: Request):
+@router.get('/datasets',response_model=DatasetList)
+def datasets(request: Request, limit: int = Query(default=100,ge=1,le=100), offset: int = Query(default=0,ge=0,le=1000000)):
     with request.app.state.store.connect() as c:
-        rows=c.execute('SELECT * FROM datasets ORDER BY created_at DESC LIMIT 100').fetchall()
-    return {'items':[dict(row)|{'request':json.loads(row['request']),'manifest':json.loads(row['manifest'])} for row in rows]}
+        rows=c.execute('SELECT id FROM datasets ORDER BY created_at DESC,id LIMIT ? OFFSET ?',(limit,offset)).fetchall()
+    return {'items':[get_dataset(request.app.state.store,row['id']) for row in rows]}
 
 
-@router.get('/datasets/{dataset_id}')
+@router.get('/datasets/{dataset_id}',response_model=DatasetResponse)
 def dataset(dataset_id: str, request: Request):
     return get_dataset(request.app.state.store,dataset_id)
 

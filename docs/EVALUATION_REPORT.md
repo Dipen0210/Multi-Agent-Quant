@@ -2,6 +2,15 @@
 
 Environment snapshot: `docs/ENVIRONMENT.json`. All figures below are observed local results, not production or financial performance claims.
 
+## Latest checks — frozen dataset integrity, 2026-10-29
+
+- `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: 73 passed in 38.479 s, no skips. Log: `runtime/verification/dataset-contract-tests.log`.
+- `venv/bin/python -m unittest discover -s tests -p test_dataset_contracts.py -v`: 5 passed in 0.452 s; validates corrupted membership/content/scope rejection, idempotency, schema identity and pagination. `test_experiments.py`: 3 passed in 5.344 s after the module separation.
+- `venv/bin/python -m scripts.acceptance --real-model --output runtime/acceptance-real.json`: 16/16 passed. Log: `runtime/verification/dataset-contract-acceptance.log`; backend hash `fc9beaf756593fc194719d6ab47bdd6b45772e421920578cc9986f339c3b68ee` verified against current source.
+- OpenAPI generation succeeds with 23/29 typed V2 routes. Frontend source is unchanged since the previous successful lint/build. Preview frontend and health returned 200 after the API refresh. Visual interaction remains unverified.
+
+These results do not complete the remaining study/result contracts, release-evidence audit, semantic review, provenance/licensing or final organization work. CP002's acceptance artifact was preserved locally as `runtime/verification/data-response-acceptance.json` before the new acceptance run.
+
 ## Latest checks — data response checkpoint, 2026-10-29
 
 - `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: 68 passed in 38.493 s, no skips; includes actual local inference, exact replay and historical model integration. Log: `runtime/verification/data-response-tests.log`.

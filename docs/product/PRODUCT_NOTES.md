@@ -25,6 +25,7 @@ Detailed acceptance criteria and stable IDs remain in [REQUIREMENTS.md](../REQUI
 | Use direct eligible-evidence selection and SQLite | Bounded local corpus does not justify a separate retrieval service or distributed infrastructure. |
 | Enforce timestamps, revisions, entity attribution and exact spans | Prevent future-data leakage and unsupported company attribution. Microsoft-positive text does not establish Apple sentiment. |
 | Keep signal policy and accounting deterministic | Sentiment is not a calibrated return forecast or executable order. |
+| Verify frozen dataset membership before historical research | Dataset digests, linked source versions, instrument/time/provenance scope are checked on reads and admission; corruption blocks work. See [API contract audit](../audits/API_CONTRACT_AUDIT.md). |
 | Preserve unknown costs and explicit failure/partial states | Local compute is not priced; missing data and provider/model failures must remain visible. |
 | Require full-release evidence separately from engineering checks | Provisional synthetic labels and passing tests cannot replace human grounding review. |
 

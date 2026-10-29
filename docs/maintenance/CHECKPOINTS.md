@@ -7,7 +7,8 @@ Implementation branch: `codex/quantsentiment-v2`. Main has not been merged or ch
 | Checkpoint | Local commit / evidence | Publication |
 |---|---|---|
 | CP001 — research pipeline, report validation and durable tools | `58f6b1c`; 96 reviewed files. 64-test actual-model run, subsequent 9 report/trace tests, 6 isolated baseline tests, 16 API acceptance checks, frontend lint/build. | **Not pushed.** Automatic approval review rejected the push twice. |
-| CP002 — data response boundaries and source health | Changes described in `docs/audits/API_CONTRACT_AUDIT.md`; 68-test actual-model run and 16 acceptance checks passed, plus frontend checks. Commit subject identifies this checkpoint in Git history. | Local only while publication approval is unresolved. |
+| CP002 — data response boundaries and source health | `efe2cec`; changes described in `docs/audits/API_CONTRACT_AUDIT.md`; 68-test actual-model run and 16 acceptance checks passed, plus frontend checks. | Local only while publication approval is unresolved. |
+| CP003 — frozen dataset integrity | Dataset contracts and membership checks; 73-test real-model suite and all 16 acceptance checks passed. Commit subject identifies this checkpoint in Git history. | Local only pending publication approval. |
 
 ## Publication approval state
 

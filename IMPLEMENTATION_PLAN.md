@@ -5,7 +5,7 @@ Scope: daily US equity research, bounded disclosed universe; local single-user a
 
 ## User additions — 2026-10-28
 
-- Commit and push every major verified checkpoint to the existing GitHub repository. Use `codex/quantsentiment-v2` for implementation checkpoints; preserve upstream changes and avoid force-pushing or merging incomplete work into main. Git publication is now explicitly authorized; deployment and live trading remain excluded.
+- Commit and push every major verified checkpoint to the existing GitHub repository. Use `codex/quantsentiment-v2` for implementation checkpoints; preserve upstream changes and avoid force-pushing or merging incomplete work into main. The requested push remains blocked by automatic approval review pending explicit payload approval; deployment and live trading remain excluded.
 - At the end, organize the repository and remove demonstrably redundant/dead code. Map imports, entry points and references before removing code; preserve source notebooks/data and user artifacts locally. See `docs/maintenance/CLEANUP_PLAN.md`. This is required delivery work, not an optional follow-up.
 - Prepare factual product notes and decision/evidence links for a later PRD. Do not describe provisional capabilities or unreviewed gates as accepted product requirements. See `docs/product/PRODUCT_NOTES.md`.
 
@@ -62,5 +62,12 @@ Minimal tracing and test infrastructure start in P0/P1. Independent work may pro
 ## Data-response checkpoint — 2026-10-29
 
 - Validate evidence content/envelope identity, market metadata, import receipt counts, frozen snapshots and configuration hashes at response boundaries. Include document and market providers in bounded source-health queries.
-- Current typed response coverage is 20/29 V2 routes. Next: dataset/study/result and release-state contracts; see `docs/audits/API_CONTRACT_AUDIT.md`. Do not weaken the requirement with unvalidated dictionary wrappers.
+- At CP002, typed response coverage was 20/29 V2 routes. Next: dataset/study/result and release-state contracts; see `docs/audits/API_CONTRACT_AUDIT.md`. Do not weaken the requirement with unvalidated dictionary wrappers.
 - CP001 is committed locally; pushing was rejected twice by automatic approval review despite verified owner/ADMIN access. The user requested localhost review in response to the publication-approval question. Publishing remains pending explicit approval; continue local implementation and commits. See `docs/maintenance/CHECKPOINTS.md`.
+
+## Frozen-dataset checkpoint — 2026-10-29
+
+- Isolate dataset contracts and storage in `research/datasets.py`; retain existing import paths from `research.experiments` for compatibility.
+- Validate immutable manifest identity, unique references, validity tier, linked source membership/content and instrument/date/provenance scope on API reads and before experiment admission/execution. Read each dataset within a single transaction. Idempotent freeze cannot silently repair damaged links.
+- Dataset list/read/create responses now have concrete schemas and bounded list pagination. Coverage is 23/29 V2 routes; study/evaluation/experiment results and release status remain.
+- Five deliberate corruption/boundary tests and the full 73-test actual-model suite passed. All 16 actual-model acceptance checks also passed; evidence is recorded in `docs/EVALUATION_REPORT.md`.
