@@ -4,7 +4,7 @@ Updated 2026-10-29. Overall: **IN PROGRESS**. The full specification remains in 
 
 ## Added delivery requirements
 
-The user now explicitly requests a commit and push at each major checkpoint to `https://github.com/Dipen0210/Multi-Agent-Quant`, final file organization/removal of redundant or dead code, and preparation for a later PRD. Work will use `codex/quantsentiment-v2`, preserve upstream commits and avoid force pushes or premature merges into main. The user requested checkpoint publication, but automatic approval review rejected the actual push and requires explicit payload approval. The user requested a local preview in response; publication remains pending. Deployment/live trading are not authorized.
+The user now explicitly requests a commit and push at each major checkpoint to `https://github.com/Dipen0210/Multi-Agent-Quant`, final file organization/removal of redundant or dead code, and preparation for a later PRD. Work will use `codex/quantsentiment-v2`, preserve upstream commits and avoid force pushes or premature merges into main. Checkpoint publication is now authorized and done: CP001-CP005 are pushed to `codex/quantsentiment-v2`, remote head `98c9a2a`, with `main` untouched at `ce58f9e` and no pull request opened. Deployment/live trading remain unauthorized and are unaffected by source publication.
 
 Final cleanup is required and unfinished: `docs/maintenance/CLEANUP_PLAN.md` inventories areas requiring dependency/reference checks before removal. `docs/product/PRODUCT_NOTES.md` collects factual scope, decisions, evidence and open items for the future PRD; it is not the final PRD. `docs/README.md` indexes the documentation.
 
@@ -47,7 +47,7 @@ Local commits: CP001 `58f6b1c`, CP002 `efe2cec`, CP003 `90d488e`, CP004 `0d3339a
 - Answered the user's review question: all current cases target AAPL, so positive Microsoft news does not support Apple sentiment. Added a target column and paired-target regression test. No frozen corpus labels or human-review statuses changed; the question is not approval.
 - Inspected both user-supplied notebooks without execution or modification. `ModelSelection.ipynb` identifies `yiyanghkust/finbert-tone`; `tradingStrategy.ipynb` loads the saved fine-tuned directory. Exact served-revision linkage and data/weight licenses remain unresolved.
 - Profiled legacy training data: 10,688 rows; 4,121 redundant exact rows; 516 distinct texts with conflicting labels. Saved notebook accuracy is not accepted as independent validation. Original strategy timing, aggregation and cross-ticker accounting defects are documented in `docs/audits/NOTEBOOK_AUDIT.md`.
-- A nonempty API-key literal in the strategy notebook was not printed or used. Original preserved; exact notebook path excluded from Git staging and notebooks excluded from Docker context. No remote publication occurred.
+- A nonempty API-key literal in the strategy notebook was not printed or used. Original preserved; exact notebook path excluded from Git staging and notebooks excluded from Docker context. The notebook was also excluded from the published branch, which was scanned for credential patterns before the push.
 
 ## Phase status and remaining gates
 

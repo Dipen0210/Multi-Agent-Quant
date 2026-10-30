@@ -5,7 +5,7 @@ Scope: daily US equity research, bounded disclosed universe; local single-user a
 
 ## User additions — 2026-10-28
 
-- Commit and push every major verified checkpoint to the existing GitHub repository. Use `codex/quantsentiment-v2` for implementation checkpoints; preserve upstream changes and avoid force-pushing or merging incomplete work into main. The requested push remains blocked by automatic approval review pending explicit payload approval; deployment and live trading remain excluded.
+- Commit and push every major verified checkpoint to the existing GitHub repository. Use `codex/quantsentiment-v2` for implementation checkpoints; preserve upstream changes and avoid force-pushing or merging incomplete work into main. The user authorized publication on 2026-10-29 and CP001-CP005 are now pushed to `codex/quantsentiment-v2`; deployment and live trading remain excluded.
 - At the end, organize the repository and remove demonstrably redundant/dead code. Map imports, entry points and references before removing code; preserve source notebooks/data and user artifacts locally. See `docs/maintenance/CLEANUP_PLAN.md`. This is required delivery work, not an optional follow-up.
 - Prepare factual product notes and decision/evidence links for a later PRD. Do not describe provisional capabilities or unreviewed gates as accepted product requirements. See `docs/product/PRODUCT_NOTES.md`.
 
@@ -63,7 +63,7 @@ Minimal tracing and test infrastructure start in P0/P1. Independent work may pro
 
 - Validate evidence content/envelope identity, market metadata, import receipt counts, frozen snapshots and configuration hashes at response boundaries. Include document and market providers in bounded source-health queries.
 - At CP002, typed response coverage was 20/29 V2 routes. Next: dataset/study/result and release-state contracts; see `docs/audits/API_CONTRACT_AUDIT.md`. Do not weaken the requirement with unvalidated dictionary wrappers.
-- CP001 is committed locally; pushing was rejected twice by automatic approval review despite verified owner/ADMIN access. The user requested localhost review in response to the publication-approval question. Publishing remains pending explicit approval; continue local implementation and commits. See `docs/maintenance/CHECKPOINTS.md`.
+- CP001 was initially rejected twice by automatic approval review despite verified owner/ADMIN access. The user later authorized publication explicitly, and CP001-CP005 were published together as a fast-forward new remote branch after a secret and artifact audit. See `docs/maintenance/CHECKPOINTS.md`.
 
 ## Frozen-dataset checkpoint — 2026-10-29
 
