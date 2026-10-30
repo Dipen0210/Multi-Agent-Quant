@@ -1,7 +1,7 @@
 """V2 local research API. Uploaded content is data, never an executable instruction."""
 from pathlib import Path
 import json
-from typing import Literal
+from typing import Annotated, Literal
 from fastapi import APIRouter, Request, HTTPException, Query
 from fastapi.exceptions import ResponseValidationError
 from pydantic import Field
@@ -151,6 +151,10 @@ from research.datasets import DatasetRequest, DatasetResponse, DatasetList, free
 from research.studies import EvaluationRequest
 from evaluation.contracts import EvaluationStudy, ReleaseStatus
 from evaluation.storage import get_evaluation
+from research.experiment_results import ExperimentStudy
+from research.study_state import StudyList
+
+StudyResponse=Annotated[EvaluationStudy|ExperimentStudy,Field(discriminator='kind')]
 
 
 @router.post('/datasets',response_model=DatasetResponse)
@@ -175,24 +179,24 @@ def evaluate(payload: EvaluationRequest, request: Request):
     return request.app.state.studies.create('evaluation',payload,request.headers.get('Idempotency-Key'))
 
 
-@router.post('/experiments',status_code=202)
+@router.post('/experiments',status_code=202,response_model=ExperimentStudy)
 def experiment(payload: ExperimentRequest, request: Request):
     return request.app.state.studies.create('experiment',payload,request.headers.get('Idempotency-Key'))
 
 
-@router.get('/studies')
-def studies(request: Request):
+@router.get('/studies',response_model=StudyList)
+def studies(request: Request, limit: int = Query(default=100,ge=1,le=100), offset: int = Query(default=0,ge=0,le=1000000)):
     with request.app.state.store.connect() as c:
-        rows=c.execute('SELECT id,kind,status,created_at,updated_at,error FROM studies ORDER BY created_at DESC LIMIT 100').fetchall()
+        rows=c.execute('SELECT id,kind,status,created_at,updated_at,error FROM studies ORDER BY created_at DESC,id LIMIT ? OFFSET ?',(limit,offset)).fetchall()
     return {'items':[dict(row) for row in rows]}
 
 
-@router.get('/studies/{study_id}')
+@router.get('/studies/{study_id}',response_model=StudyResponse)
 def study(study_id: str, request: Request):
     return request.app.state.studies.get(study_id)
 
 
-@router.post('/studies/{study_id}/cancel')
+@router.post('/studies/{study_id}/cancel',response_model=StudyResponse)
 def cancel_study(study_id: str, request: Request):
     return request.app.state.studies.cancel(study_id)
 

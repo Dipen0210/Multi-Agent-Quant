@@ -8,13 +8,13 @@ import json
 import math
 from pathlib import Path
 from typing import Annotated, Literal
-from uuid import UUID
 from pydantic import Field, PrivateAttr, StrictBool, field_validator, model_validator, model_serializer
 from research.contracts import Contract, utc
 from research.outputs import ModelOutput
 from research.reports import Digest
 from research.sentiment import SentimentResult, evidence_spans, analyze_record
 from research.store import digest
+from research.study_state import StudyState, StudyIntegrityError
 
 Ratio = Annotated[float, Field(ge=0,le=1,strict=True)]
 Count = Annotated[int, Field(ge=0,strict=True)]
@@ -213,10 +213,6 @@ class EvaluationResult(Contract):
         return self
 
 
-class StudyIntegrityError(ValueError):
-    """Stored study/output corruption; details may contain source text."""
-
-
 class EngineeringSummary(Contract):
     id: Digest
     status: Literal['passed','failed']
@@ -229,36 +225,12 @@ class ReleaseStatus(Contract):
     approval_status: Literal['provisional engineering targets, not user-approved release requirements']
 
 
-class EvaluationStudy(Contract):
-    id: UUID
+class EvaluationStudy(StudyState[EvaluationRequest,EvaluationResult]):
     kind: Literal['evaluation']
-    idempotency_key: str = Field(min_length=1,max_length=160)
-    request_hash: Digest
-    request: EvaluationRequest
-    status: Literal['queued','running','completed','failed','cancelled']
-    created_at: datetime
-    updated_at: datetime
-    cancelled: int = Field(ge=0,le=1,strict=True)
-    result: EvaluationResult | None
-    error: str | None
-    attempt: int = Field(ge=0,strict=True)
-
-    @field_validator('created_at','updated_at')
-    @classmethod
-    def aware(cls,value): return utc(value)
 
     @model_validator(mode='after')
-    def consistent(self):
-        if self.request_hash!=digest({'kind':self.kind,'request':self.request.model_dump(mode='json')}):
-            raise ValueError('Study request identity mismatch')
-        if self.updated_at<self.created_at: raise ValueError('Study timestamps out of order')
-        if self.status=='completed':
-            if self.result is None or self.result.id is None or self.cancelled or self.error or self.attempt<1:
-                raise ValueError('Completed evaluation has inconsistent status metadata')
-            if (self.result.engine,self.result.split)!=(self.request.engine,self.request.split):
+    def evaluation_matches(self):
+        if self.result is not None:
+            if self.result.id is None or (self.result.engine,self.result.split)!=(self.request.engine,self.request.split):
                 raise ValueError('Evaluation result does not match its initiating request')
-        elif self.result is not None:
-            raise ValueError('Uncompleted evaluation cannot expose an accepted result')
-        if self.status=='failed' and not self.error: raise ValueError('Failed study requires an error')
-        if self.status=='running' and self.attempt<1: raise ValueError('Running study requires an attempt')
         return self

@@ -1,6 +1,6 @@
 """Frozen historical research with time-aware evidence and explicitly limited validity."""
 from datetime import date, datetime, timedelta
-from typing import Literal
+from uuid import UUID, uuid4
 from pydantic import Field, model_validator
 from research.configuration import Configuration, register
 from research.contracts import Contract, Document, MarketObservation
@@ -35,7 +35,7 @@ class ExperimentRequest(Contract):
         return self
 
 
-def historical_snapshot(store,dataset,cutoff):
+def historical_snapshot(store,dataset,cutoff,*,persist=True):
     instrument=dataset['request']['instrument_id']
     lower=cutoff-timedelta(days=dataset['request']['document_lookback_days'])
     latest={};bars={}
@@ -62,15 +62,16 @@ def historical_snapshot(store,dataset,cutoff):
         'availability_policy':'first-observed-or-explicit-latency-v1','deduplication_policy':'normalized-exact-historical-v1',
         'validity_tier':dataset['manifest']['validity_tier'],'limitations':['Frozen historical subset; supplied availability metadata is not certified.']}
     ident=digest({'request':request,'manifest':manifest})
-    with store.connect() as c:
-        c.execute('INSERT OR IGNORE INTO snapshots VALUES (?,?,?,?)',(ident,now(),canonical(request),canonical(manifest)))
-        for key in docs: c.execute('INSERT OR IGNORE INTO snapshot_documents VALUES (?,?)',(ident,key))
-        for key in manifest['market_ids']: c.execute('INSERT OR IGNORE INTO snapshot_market VALUES (?,?)',(ident,key))
+    if persist:
+        with store.connect() as c:
+            c.execute('INSERT OR IGNORE INTO snapshots VALUES (?,?,?,?)',(ident,now(),canonical(request),canonical(manifest)))
+            for key in docs: c.execute('INSERT OR IGNORE INTO snapshot_documents VALUES (?,?)',(ident,key))
+            for key in manifest['market_ids']: c.execute('INSERT OR IGNORE INTO snapshot_market VALUES (?,?)',(ident,key))
     return {'id':ident,'request':request,'manifest':manifest}
 
 
-def run_experiment(store,request: ExperimentRequest,cancelled=lambda:False):
-    dataset=get_dataset(store,request.dataset_id);instrument=dataset['request']['instrument_id']
+def selected_market(store,dataset):
+    instrument=dataset['request']['instrument_id']
     observations=[]
     with store.connect() as c:
         for ident in dataset['manifest']['market_ids']:
@@ -85,6 +86,14 @@ def run_experiment(store,request: ExperimentRequest,cancelled=lambda:False):
         items.sort(key=lambda item:(item[1].available_at,item[1].revision))
         selected.append(items[0])
         if len(items)>1: revised.append({'session':items[0][1].interval_start.date().isoformat(),'used_revision':items[0][1].revision,'other_revisions':[b.revision for _,b in items[1:]]})
+    return selected,revised
+
+
+def run_experiment(store,request: ExperimentRequest,cancelled=lambda:False,*,execution_id=None):
+    execution_id=str(UUID(execution_id)) if execution_id is not None else str(uuid4())
+    application_hash=code_version()
+    dataset=get_dataset(store,request.dataset_id);instrument=dataset['request']['instrument_id']
+    selected,revised=selected_market(store,dataset)
     sessions=[b.interval_start.date().isoformat() for _,b in selected if dataset['request']['start']<=b.interval_start.date().isoformat()<=dataset['request']['end']]
     split=chronological_partitions(sessions,request.train_end.isoformat(),request.validation_end.isoformat(),request.test_start.isoformat())
     signals={'non_agent_sentiment':[],'single_pass':[],'verified':[],'without_deduplication':[]}
@@ -108,7 +117,7 @@ def run_experiment(store,request: ExperimentRequest,cancelled=lambda:False):
         outputs=[]
         for variant,config in configs.items():
             if cancelled(): raise Cancelled('Experiment cancelled')
-            run_id=digest({'dataset':dataset['id'],'snapshot':snap['id'],'configuration':config['id'],'application':code_version()});payload={'snapshot_id':snap['id'],'question':'Frozen historical sentiment policy','configuration_id':config['id']}
+            run_id=digest({'execution':execution_id,'dataset':dataset['id'],'snapshot':snap['id'],'configuration':config['id'],'application':application_hash});payload={'snapshot_id':snap['id'],'question':'Frozen historical sentiment policy','configuration_id':config['id']}
             with store.connect() as c:
                 c.execute('INSERT INTO runs(id,idempotency_key,request_hash,snapshot_id,configuration_id,status,created_at,updated_at,attempt,request) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,cancelled=0,attempt=runs.attempt+1,updated_at=excluded.updated_at,error=NULL,report=NULL',
                     (run_id,run_id,digest(payload),snap['id'],config['id'],'running',now(),now(),1,canonical(payload)))
@@ -125,6 +134,20 @@ def run_experiment(store,request: ExperimentRequest,cancelled=lambda:False):
             signals[variant].append(SimulationSignal(instrument_id=instrument,decision_at=cutoff,information_cutoff=cutoff,action=action,
                 source_run_id=run_id,evidence_ids=snap['manifest']['document_ids']).model_dump(mode='json'))
         disagreements+=outputs[0]!=outputs[1]
+    comparisons=simulation_comparisons(selected,signals,split,request,instrument)
+    return {'execution_id':execution_id,'dataset':dataset,'request':request.model_dump(mode='json'),'partitions':split,'comparisons':comparisons,
+        'signals':signals,'research_run_ids':research_runs,'snapshot_ids':sorted(set(snapshots)),'market_revisions':revised,
+        'workflow_disagreement_count':disagreements,'application_hash':application_hash,'dependencies':dependency_versions(),
+        'validity_tier':dataset['manifest']['validity_tier'],'created_at':now(),'external_execution':False,
+        'limitations':[dataset['manifest']['universe'],'Synthetic fixtures establish accounting behavior only, not historical profitability.',
+            'No learned model, threshold fitting or parameter search; fixed policies are compared without optimizing on the test partition.',
+            'Single-pass and verified variants share deterministic evidence/sentiment logic; this is an orchestration ablation, not an independent generative-agent benchmark.',
+            'Pretrained-model historical outcome contamination is unresolved. Timestamp filtering does not establish leakage-free historical inference.',
+            'No predictive confidence interval: sample size and observed paths are reported, without statistical significance claims.',
+            'Dividends excluded; historical imported metadata has limited availability validity. Prospective frozen-policy validation is the stronger follow-up.']}
+
+
+def simulation_comparisons(selected,signals,split,request,instrument):
     comparisons={}
     for partition in ('train','validation','test'):
         days=split[partition];bars=[b for _,b in selected if b.interval_start.date().isoformat() in days]
@@ -141,13 +164,4 @@ def run_experiment(store,request: ExperimentRequest,cancelled=lambda:False):
         variants['passive_same_exposure']=simulate([b.model_dump(mode='json') for b in bars],[passive_signal],passive_policy,
             initial_previous=previous.model_dump(mode='json') if previous else None)
         comparisons[partition]=variants
-    return {'dataset':dataset,'request':request.model_dump(mode='json'),'partitions':split,'comparisons':comparisons,
-        'signals':signals,'research_run_ids':research_runs,'snapshot_ids':sorted(set(snapshots)),'market_revisions':revised,
-        'workflow_disagreement_count':disagreements,'application_hash':code_version(),'dependencies':dependency_versions(),
-        'validity_tier':dataset['manifest']['validity_tier'],'created_at':now(),'external_execution':False,
-        'limitations':[dataset['manifest']['universe'],'Synthetic fixtures establish accounting behavior only, not historical profitability.',
-            'No learned model, threshold fitting or parameter search; fixed policies are compared without optimizing on the test partition.',
-            'Single-pass and verified variants share deterministic evidence/sentiment logic; this is an orchestration ablation, not an independent generative-agent benchmark.',
-            'Pretrained-model historical outcome contamination is unresolved. Timestamp filtering does not establish leakage-free historical inference.',
-            'No predictive confidence interval: sample size and observed paths are reported, without statistical significance claims.',
-            'Dividends excluded; historical imported metadata has limited availability validity. Prospective frozen-policy validation is the stronger follow-up.']}
+    return comparisons

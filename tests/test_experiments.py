@@ -26,8 +26,18 @@ class ExperimentTests(WorkflowFixture):
                 for point in variant['equity_curve']:
                     self.assertAlmostEqual(point['equity'],point['cash']+point['shares']*point['close'])
         again=run_experiment(self.client.app.state.store,request)
-        self.assertEqual(result['comparisons'],again['comparisons'])
-        self.assertEqual(result['research_run_ids'],again['research_run_ids'])
+        def accounting(value):
+            if isinstance(value,dict): return {key:accounting(item) for key,item in value.items() if key!='source_run_id'}
+            if isinstance(value,list): return [accounting(item) for item in value]
+            return value
+        self.assertEqual(accounting(result['comparisons']),accounting(again['comparisons']))
+        self.assertNotEqual(result['execution_id'],again['execution_id'])
+        self.assertTrue(set(result['research_run_ids']).isdisjoint(again['research_run_ids']))
+        # Identical frozen inputs reproduce accounting while preserving both histories.
+        self.assertEqual(result['snapshot_ids'],again['snapshot_ids'])
+        from research.experiment_results import validate_experiment_sources
+        validate_experiment_sources(self.client.app.state.store,result)
+        validate_experiment_sources(self.client.app.state.store,again)
 
     def test_future_revision_not_visible_in_historical_snapshot(self):
         data=self.dataset()

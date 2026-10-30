@@ -10,6 +10,7 @@ from research.store import canonical,digest,now
 from evaluation.suite import run_suite,persist
 from evaluation.contracts import EvaluationRequest, EvaluationStudy, StudyIntegrityError
 from evaluation.storage import get_evaluation
+from research.experiment_results import ExperimentStudy, validate_experiment_sources
 
 
 class Studies:
@@ -30,6 +31,16 @@ class Studies:
                 EvaluationStudy.model_validate(result)
                 if result['result'] is not None and get_evaluation(self.store,result['result']['id'])!=result['result']:
                     raise ValueError('Study result differs from persisted evaluation')
+            elif row['kind']=='experiment':
+                ExperimentStudy.model_validate(result)
+                if result['result'] is not None:
+                    validate_experiment_sources(self.store,result['result'])
+                    with self.store.connect() as c:
+                        saved=c.execute('SELECT * FROM experiment_runs WHERE id=?',(ident,)).fetchone()
+                    if (not saved or saved['status']!='completed' or saved['error'] is not None
+                            or json.loads(saved['request'])!=result['request'] or json.loads(saved['result'])!=result['result']):
+                        raise ValueError('Study differs from persisted experiment')
+            else: raise ValueError('Unknown study kind')
         except (ValueError,TypeError) as exc:
             raise StudyIntegrityError('Stored study failed validation') from exc
         return result
@@ -71,10 +82,18 @@ class Studies:
             if study['kind']=='evaluation':
                 payload=EvaluationRequest.model_validate(study['request'])
                 result=run_suite(payload.engine,payload.split,cancelled=cancelled)
+                if (result.get('engine'),result.get('split'))!=(payload.engine,payload.split):
+                    raise StudyIntegrityError('Evaluation output differs from initiating request')
                 if cancelled(): raise Cancelled('Study cancelled')
                 result=persist(self.store,result)
             else:
-                result=run_experiment(self.store,ExperimentRequest.model_validate(study['request']),cancelled)
+                payload=ExperimentRequest.model_validate(study['request'])
+                result=run_experiment(self.store,payload,cancelled,execution_id=ident)
+                validate_experiment_sources(self.store,result,cancelled)
+                if ExperimentRequest.model_validate(result['request'])!=payload:
+                    raise StudyIntegrityError('Experiment output differs from initiating request')
+                if result.get('execution_id')!=ident:
+                    raise StudyIntegrityError('Experiment output differs from initiating execution')
                 if cancelled(): raise Cancelled('Study cancelled')
                 with self.store.connect() as c:
                     c.execute('INSERT INTO experiment_runs VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,result=excluded.result,error=NULL',

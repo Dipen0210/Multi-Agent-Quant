@@ -45,3 +45,20 @@ Result serialization preserves original timestamps and omitted defaults so API r
 Six focused contract/recovery tests passed in 0.844 s. Full actual-model suite: 79 passed in 38.244 s, no skips. Actual FinBERT held-out evaluation: 11/12 case agreement, engineering gates passed, 6.275 s; authored expectations remain unreviewed. OpenAPI generation succeeded with 25/29 typed routes. Experiment result reconciliation and shared study schemas remain the next response work.
 
 CP004 actual-model acceptance: 16/16 passed; application hash `24144a3571496f1affd5950e86f47cc9ba1d1be1598f3c6df1ee9599e76553a9`.
+
+## Experiment-result increment
+
+`research/experiment_results.py` owns typed historical results: per-partition equity curves, metrics, policies, end positions, signal links, snapshot/run membership and disclosed limitations. Curve points revalidate their own accounting identities (equity, exposure and residual error) instead of trusting stored numbers. `validate_experiment_sources` then reconciles each curve against the frozen market bars selected for the dataset and each signal against the eligible frozen evidence for its cutoff, so a result that is internally consistent but contradicts its sources fails closed. Read-side validation never reruns inference; a regression patches `research.models.local_finbert` to assert that.
+
+`research/study_state.py` holds the shared durable study lifecycle. `StudySummary` carries list-level fields and `StudyState` is generic over request/result types, so evaluation and experiment studies share identity, timestamp, attempt, cancellation and terminal-state invariants rather than duplicating them. `EvaluationStudy` now adds only its engine/split agreement check.
+
+Each experiment execution carries its own `execution_id`, which is folded into derived run identities. Repeated runs over identical frozen inputs therefore reproduce accounting while keeping disjoint research-run histories, instead of silently reusing or overwriting prior records. `research/experiments.py` separates market selection and simulation comparison so validation can recompute without persisting snapshots.
+
+Study responses are a discriminated union of evaluation and experiment studies; `/studies` is bounded and paginated like the other list routes. The worker validates sources before persistence, so a wrong-source result leaves `experiment_runs` empty and the study failed with no result. A completed study whose linked research report has been removed returns a sanitized `invalid_response` error without source text.
+
+- `tests/test_experiment_contracts.py`: 6 passed in 40.370 s — API round trip with idempotency and list bounds, seven structural corruption mutations, a consistent fake price rejected against frozen market data, a flipped signal with recomputed accounting rejected against eligible evidence, pre-persistence worker rejection and the missing linked report.
+- Focused historical replay: 3 passed in 12.851 s. Full actual-model suite: 85 passed in 67.316 s, no skips.
+- OpenAPI generation succeeded with **29/29 typed V2 routes**. No permissive `dict` wrappers were added to reach it.
+- CP005 actual-model acceptance: 16/16 passed; application hash `a66ced3dd0e31d98ed393fe1b49faa6f1ea7f4e6f1d05a5dd7cb341eeba6daa3`.
+
+Typed coverage of the `/api` surface is now complete, which closes the response-schema line of work only. The non-`/api` health and disabled legacy routes still need a final boundary review, and release-evidence accounting, integrated evidence timeline/sentiment history, the requirement-level audit and final organization remain outstanding.

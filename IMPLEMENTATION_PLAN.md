@@ -79,3 +79,11 @@ Minimal tracing and test infrastructure start in P0/P1. Independent work may pro
 - Clear interrupted/stale study results and errors before another attempt; redact validation payloads from failure messages.
 - Include evaluation code in application version hashing. Typed API coverage is now 25/29; experiment results and shared study/list declarations remain. Full release-evidence accounting is still incomplete despite the typed release-state response.
 - Six focused tests, all 79 actual-model tests and a separate real FinBERT diagnostic run passed; acceptance receipts are recorded in the evaluation report.
+
+## Experiment-result checkpoint — 2026-10-29
+
+- Validate historical results structurally and against their sources. Recompute ledger identities, then reconcile equity curves with frozen market bars and signals with eligible frozen evidence. Internal consistency alone cannot establish historical grounding, and read-side validation must not rerun inference or substitute fresh outputs.
+- Share one durable study lifecycle contract between evaluation and experiment studies via a generic `StudyState`, rather than duplicating identity/timestamp/attempt invariants per kind. Serve studies as a discriminated union and bound the study list.
+- Give each experiment execution its own identity and fold it into derived run identities. Repeated runs over identical frozen inputs must reproduce accounting while preserving both run histories; reproducibility is asserted on accounting, not on run identifiers.
+- Validate experiment sources in the worker before persistence, so a wrong-source result cannot be stored and later served. A completed study whose linked report is missing must fail closed with a sanitized error.
+- Typed `/api` response coverage reached 29/29 without permissive dictionary wrappers. This completes the response-schema work only; it is not semantic acceptance, and release-evidence accounting, the requirement-level audit and final organization remain open.

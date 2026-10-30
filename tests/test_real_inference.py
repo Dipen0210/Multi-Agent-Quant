@@ -31,6 +31,10 @@ class RealInferenceTests(WorkflowFixture):
         store=self.client.app.state.store
         dataset=freeze_dataset(store,DatasetRequest(instrument_id='US:AAPL',start='2025-01-02',end='2025-01-06'))
         result=run_experiment(store,ExperimentRequest(dataset_id=dataset['id'],train_end='2025-01-02',validation_end='2025-01-03',test_start='2025-01-06',configuration=Configuration(sentiment_engine='finbert')))
+        from research.experiment_results import validate_experiment_sources
+        from unittest.mock import patch
+        with patch('research.models.local_finbert',side_effect=AssertionError('Validation must not rerun inference')):
+            validate_experiment_sources(store,result)
         self.assertEqual(result['validity_tier'],'synthetic_pipeline')
         self.assertTrue(any('contamination' in text for text in result['limitations']))
         reports=[self.client.app.state.jobs.get(ident)['report'] for ident in result['research_run_ids']]

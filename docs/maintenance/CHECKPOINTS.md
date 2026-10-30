@@ -10,6 +10,7 @@ Implementation branch: `codex/quantsentiment-v2`. Main has not been merged or ch
 | CP002 — data response boundaries and source health | `efe2cec`; changes described in `docs/audits/API_CONTRACT_AUDIT.md`; 68-test actual-model run and 16 acceptance checks passed, plus frontend checks. | Local only while publication approval is unresolved. |
 | CP003 — frozen dataset integrity | `90d488e`; dataset contracts and membership checks; 73-test real-model suite and all 16 acceptance checks passed. Commit subject identifies this checkpoint in Git history. | Local only pending publication approval. |
 | CP004 — evaluation result integrity | Frozen case/gate reconciliation, persisted result checks and evaluation code versioning. 79-test actual-model suite, all 16 acceptance checks and separate FinBERT diagnostic passed. | Local only pending publication approval. |
+| CP005 — experiment result integrity and shared study contracts | Typed historical results, source-backed replay validation, per-execution identity and shared study lifecycle. 85-test actual-model suite, 6 focused contract tests, 3 focused replay tests and all 16 acceptance checks passed. Application hash `a66ced3dd0e31d98ed393fe1b49faa6f1ea7f4e6f1d05a5dd7cb341eeba6daa3`. Typed `/api` coverage 29/29. | Pending push at this checkpoint. |
 
 ## Publication approval state
 
