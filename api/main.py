@@ -7,6 +7,7 @@ from research.store import Store
 from research.jobs import Jobs
 from research.studies import Studies
 from research.datasets import DatasetIntegrityError
+from evaluation.contracts import StudyIntegrityError
 from api.boundaries import RequestBoundary, ALLOWED_ORIGINS
 from api.research_routes import router as research_router
 from datetime import datetime, timezone
@@ -52,6 +53,7 @@ async def missing_resource(request, exc):
 
 @app.exception_handler(ResponseValidationError)
 @app.exception_handler(DatasetIntegrityError)
+@app.exception_handler(StudyIntegrityError)
 async def invalid_response(request, exc):
     # Validation details may contain stored evidence; never expose them in errors.
     return JSONResponse({'error':{'code':'invalid_response','message':'Stored output failed validation; no data was accepted'}},status_code=500)

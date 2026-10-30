@@ -2,34 +2,37 @@
 import json
 import time
 import uuid
-from typing import Literal
-from pydantic import Field
-from research.contracts import Contract
+from pydantic import ValidationError
 from research.experiments import ExperimentRequest, run_experiment
 from research.datasets import get_dataset
 from research.models import Cancelled
 from research.store import canonical,digest,now
 from evaluation.suite import run_suite,persist
-
-
-class EvaluationRequest(Contract):
-    engine: Literal['baseline','finbert']='baseline'
-    split: Literal['development','heldout']='heldout'
+from evaluation.contracts import EvaluationRequest, EvaluationStudy, StudyIntegrityError
+from evaluation.storage import get_evaluation
 
 
 class Studies:
     def __init__(self,store,jobs):
         self.store=store;self.jobs=jobs
         with store.connect() as c:
-            c.execute("UPDATE studies SET status='queued',error='Interrupted; restarting immutable inputs' WHERE status='running' AND cancelled=0")
-            c.execute("UPDATE studies SET status='cancelled' WHERE cancelled=1 AND status IN ('queued','running')")
+            c.execute("UPDATE studies SET status='queued',result=NULL,error='Interrupted; restarting immutable inputs' WHERE status='running' AND cancelled=0")
+            c.execute("UPDATE studies SET status='cancelled',result=NULL WHERE cancelled=1 AND status IN ('queued','running')")
             pending=[r['id'] for r in c.execute("SELECT id FROM studies WHERE status='queued'")]
         for ident in pending: jobs.executor.submit(self.work,ident)
 
     def get(self,ident):
         with self.store.connect() as c: row=c.execute('SELECT * FROM studies WHERE id=?',(ident,)).fetchone()
         if not row: raise KeyError('Study not found')
-        return dict(row)|{'request':json.loads(row['request']),'result':json.loads(row['result']) if row['result'] else None}
+        try:
+            result=dict(row)|{'request':json.loads(row['request']),'result':json.loads(row['result']) if row['result'] else None}
+            if row['kind']=='evaluation':
+                EvaluationStudy.model_validate(result)
+                if result['result'] is not None and get_evaluation(self.store,result['result']['id'])!=result['result']:
+                    raise ValueError('Study result differs from persisted evaluation')
+        except (ValueError,TypeError) as exc:
+            raise StudyIntegrityError('Stored study failed validation') from exc
+        return result
 
     def create(self,kind,payload,key=None):
         if kind=='experiment': get_dataset(self.store,payload.dataset_id)
@@ -56,7 +59,7 @@ class Studies:
 
     def work(self,ident):
         with self.store.connect() as c:
-            changed=c.execute("UPDATE studies SET status='running',attempt=attempt+1,updated_at=? WHERE id=? AND status='queued' AND cancelled=0",(now(),ident)).rowcount
+            changed=c.execute("UPDATE studies SET status='running',attempt=attempt+1,result=NULL,error=NULL,updated_at=? WHERE id=? AND status='queued' AND cancelled=0",(now(),ident)).rowcount
         if not changed: return
         start=time.monotonic()
         def cancelled():
@@ -76,9 +79,10 @@ class Studies:
                 with self.store.connect() as c:
                     c.execute('INSERT INTO experiment_runs VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,result=excluded.result,error=NULL',
                         (ident,now(),'completed',canonical(study['request']),canonical(result),None))
-            with self.store.connect() as c: c.execute("UPDATE studies SET status=CASE WHEN cancelled=1 THEN 'cancelled' ELSE 'completed' END,result=CASE WHEN cancelled=1 THEN NULL ELSE ? END,updated_at=? WHERE id=?",(canonical(result),now(),ident))
+            with self.store.connect() as c: c.execute("UPDATE studies SET status=CASE WHEN cancelled=1 THEN 'cancelled' ELSE 'completed' END,result=CASE WHEN cancelled=1 THEN NULL ELSE ? END,error=NULL,updated_at=? WHERE id=?",(canonical(result),now(),ident))
         except Exception as exc:
-            with self.store.connect() as c: c.execute("UPDATE studies SET status=CASE WHEN cancelled=1 THEN 'cancelled' ELSE ? END,error=?,updated_at=? WHERE id=?",('cancelled' if isinstance(exc,Cancelled) else 'failed',type(exc).__name__+': '+str(exc)[:300],now(),ident))
+            message='Study output failed validation' if isinstance(exc,(ValidationError,StudyIntegrityError)) else type(exc).__name__+': '+str(exc)[:300]
+            with self.store.connect() as c: c.execute("UPDATE studies SET status=CASE WHEN cancelled=1 THEN 'cancelled' ELSE ? END,result=NULL,error=?,updated_at=? WHERE id=?",('cancelled' if isinstance(exc,Cancelled) else 'failed',message,now(),ident))
 
     def close(self):
         with self.store.connect() as c: c.execute("UPDATE studies SET cancelled=1,status=CASE WHEN status='queued' THEN 'cancelled' ELSE status END WHERE status IN ('queued','running')")

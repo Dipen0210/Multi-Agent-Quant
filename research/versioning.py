@@ -7,7 +7,7 @@ import hashlib
 def code_version():
     root=Path(__file__).parents[1]
     hash_=hashlib.sha256()
-    for folder in ('research','api'):
+    for folder in ('research','api','evaluation'):
         for file in sorted((root/folder).rglob('*')):
             if file.suffix not in {'.py','.sql'}: continue
             hash_.update(str(file.relative_to(root)).encode());hash_.update(file.read_bytes())

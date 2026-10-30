@@ -149,6 +149,8 @@ def tools(run_id: str, request: Request, limit: int = Query(default=300,ge=1,le=
 from research.experiments import ExperimentRequest
 from research.datasets import DatasetRequest, DatasetResponse, DatasetList, freeze_dataset, get_dataset
 from research.studies import EvaluationRequest
+from evaluation.contracts import EvaluationStudy, ReleaseStatus
+from evaluation.storage import get_evaluation
 
 
 @router.post('/datasets',response_model=DatasetResponse)
@@ -168,7 +170,7 @@ def dataset(dataset_id: str, request: Request):
     return get_dataset(request.app.state.store,dataset_id)
 
 
-@router.post('/evaluations',status_code=202)
+@router.post('/evaluations',status_code=202,response_model=EvaluationStudy)
 def evaluate(payload: EvaluationRequest, request: Request):
     return request.app.state.studies.create('evaluation',payload,request.headers.get('Idempotency-Key'))
 
@@ -195,11 +197,12 @@ def cancel_study(study_id: str, request: Request):
     return request.app.state.studies.cancel(study_id)
 
 
-@router.get('/release-status')
+@router.get('/release-status',response_model=ReleaseStatus)
 def release_status(request: Request):
     with request.app.state.store.connect() as c:
-        latest=c.execute('SELECT id,status,result FROM evaluation_runs ORDER BY created_at DESC LIMIT 1').fetchone()
-    return {'full_release_pass':False,'latest_engineering_evaluation':{'id':latest['id'],'status':latest['status']} if latest else None,
+        latest=c.execute('SELECT id FROM evaluation_runs ORDER BY created_at DESC,id LIMIT 1').fetchone()
+    result=get_evaluation(request.app.state.store,latest['id']) if latest else None
+    return {'full_release_pass':False,'latest_engineering_evaluation':{'id':result['id'],'status':'passed' if result['engineering_pass'] else 'failed'} if result else None,
         'blockers':['Human-reviewed semantic cases pending','Complete historical and frontend acceptance audit pending','Mandatory requirement evidence mapping incomplete'],
         'approval_status':'provisional engineering targets, not user-approved release requirements'}
 

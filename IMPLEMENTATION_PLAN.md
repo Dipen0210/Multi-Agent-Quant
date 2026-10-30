@@ -71,3 +71,11 @@ Minimal tracing and test infrastructure start in P0/P1. Independent work may pro
 - Validate immutable manifest identity, unique references, validity tier, linked source membership/content and instrument/date/provenance scope on API reads and before experiment admission/execution. Read each dataset within a single transaction. Idempotent freeze cannot silently repair damaged links.
 - Dataset list/read/create responses now have concrete schemas and bounded list pagination. Coverage is 23/29 V2 routes; study/evaluation/experiment results and release status remain.
 - Five deliberate corruption/boundary tests and the full 73-test actual-model suite passed. All 16 actual-model acceptance checks also passed; evidence is recorded in `docs/EVALUATION_REPORT.md`.
+
+## Evaluation-result checkpoint — 2026-10-29
+
+- Validate result identities, frozen cases and review status, recorded inference/preprocessing, classification accounting, gate decisions and persisted study linkage. Read-side validation must not rerun FinBERT or substitute fresh outputs.
+- Keep original serialized result bytes semantically unchanged across API responses so timestamp/default normalization cannot invalidate content IDs. Reject unknown artifact hashes rather than interpreting historical results using different definitions.
+- Clear interrupted/stale study results and errors before another attempt; redact validation payloads from failure messages.
+- Include evaluation code in application version hashing. Typed API coverage is now 25/29; experiment results and shared study/list declarations remain. Full release-evidence accounting is still incomplete despite the typed release-state response.
+- Six focused tests, all 79 actual-model tests and a separate real FinBERT diagnostic run passed; acceptance receipts are recorded in the evaluation report.

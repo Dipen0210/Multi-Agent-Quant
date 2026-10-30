@@ -1,6 +1,6 @@
 # API response-contract coverage — 2026-10-29
 
-Scope: successful V2 `/api` responses, inspected from the actual FastAPI route registry. Request validation and structured error handling are separate boundaries. **23 of 29 V2 routes have declared response models; six remain unfinished.** This count is coverage evidence, not full application acceptance.
+Scope: successful V2 `/api` responses, inspected from the actual FastAPI route registry. Request validation and structured error handling are separate boundaries. **25 of 29 V2 routes have declared response models; four remain unfinished.** This count is coverage evidence, not full application acceptance.
 
 | Domain | Routes | Response validation / status |
 |---|---|---|
@@ -13,8 +13,8 @@ Scope: successful V2 `/api` responses, inspected from the actual FastAPI route r
 | Research runs | `POST/GET /api/runs`, `GET /api/runs/{run_id}`, `POST .../cancel`, `POST .../retry` | `RunResponse` / `RunList`: report/run linkage, status and request identity; final reports also rechecked against actual sources and market calculations. |
 | Traces | `GET /api/runs/{run_id}/steps`, `.../tools` | `StepList` / `ToolList`: parent/child references, attempt identity, input hash, completion metadata and validated outputs; bounded pagination. |
 | Datasets | `POST/GET /api/datasets`, `GET /api/datasets/{dataset_id}` | `DatasetResponse` / `DatasetList`: frozen identity, unique bounded references, provenance/tier, authoritative source membership/content and scope checks. Reads share a transaction; list pagination is bounded; corruption prevents experiment admission. |
-| Studies | `POST /api/evaluations`, `POST /api/experiments`, `GET /api/studies`, `GET /api/studies/{study_id}`, `POST .../cancel` | **Incomplete:** request contracts exist; successful study/results responses still need declared schemas and cross-field checks. |
-| Release state | `GET /api/release-status` | **Incomplete:** currently reports explicit blockers, but needs typed response and complete evidence-accounting audit. |
+| Studies | `POST /api/evaluations`, `POST /api/experiments`, `GET /api/studies`, `GET /api/studies/{study_id}`, `POST .../cancel` | `POST /api/evaluations` has `EvaluationStudy` with nested validated results. Evaluation study reads/cancellation also validate internally and reconcile persisted records. **Incomplete:** experiment results and shared study/list route declarations remain. |
+| Release state | `GET /api/release-status` | `ReleaseStatus`: typed engineering summary and explicit full-release blockers. Latest evaluation identity, metadata, metrics and gates are revalidated before reporting its status. **Incomplete:** full requirement evidence accounting still pending. |
 
 The non-`/api` health and disabled legacy routes also require a final boundary review. Do not add permissive `dict` wrappers solely to make the coverage count green.
 
@@ -35,3 +35,13 @@ Remaining response work should validate study kind/request/result/status consist
 `tests/test_dataset_contracts.py`: 5 tests passed in 0.452 s. They cover API round trips/idempotency/pagination, invalid hash/duplicates/tier, missing membership and blocked job creation, forged but internally hashed scope, and altered source content hashes. Faults occur only in isolated temporary databases. Existing historical experiment tests also passed (3 in 5.344 s). Full suite with real inference: 73 passed in 38.479 s. OpenAPI generated successfully with 23/29 typed routes.
 
 Actual-model API acceptance after this increment: 16/16 passed; backend hash `fc9beaf756593fc194719d6ab47bdd6b45772e421920578cc9986f339c3b68ee`. Frontend was not changed in this increment.
+
+## Evaluation-result increment
+
+`evaluation/contracts.py` checks exact frozen partition membership, expected labels/review metadata, source identity/spans, deterministic preprocessing of recorded model outputs, per-class/confusion metrics, abstention, gate decisions and immutable result identity. `evaluation/storage.py` reconciles database envelopes and linked study results. Unknown dataset/gate hashes fail closed; future artifact versions must retain a resolver for historical definitions. The current v1 artifact files remain unchanged.
+
+Result serialization preserves original timestamps and omitted defaults so API round trips retain the content hash. Corrupt output cannot be persisted as an accepted evaluation, and validation failures do not expose source payloads in job errors. Recovery clears stale results/errors before recomputation. The application hash now includes evaluation Python code as well as research/API code; dataset and gate hashes remain separate.
+
+Six focused contract/recovery tests passed in 0.844 s. Full actual-model suite: 79 passed in 38.244 s, no skips. Actual FinBERT held-out evaluation: 11/12 case agreement, engineering gates passed, 6.275 s; authored expectations remain unreviewed. OpenAPI generation succeeded with 25/29 typed routes. Experiment result reconciliation and shared study schemas remain the next response work.
+
+CP004 actual-model acceptance: 16/16 passed; application hash `24144a3571496f1affd5950e86f47cc9ba1d1be1598f3c6df1ee9599e76553a9`.

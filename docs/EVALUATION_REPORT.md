@@ -2,6 +2,16 @@
 
 Environment snapshot: `docs/ENVIRONMENT.json`. All figures below are observed local results, not production or financial performance claims.
 
+## Latest checks — evaluation result integrity, 2026-10-29
+
+- `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: 79 passed in 38.244 s, no skips; log `runtime/verification/evaluation-contract-tests.log`.
+- `venv/bin/python -m unittest discover -s tests -p test_evaluation_contracts.py -v`: 6 passed in 0.844 s. Covers metrics/expected-label/source corruption, bad worker output, preserved API result identity, changed initiating requests, database status tampering and interrupted attempt recovery.
+- `venv/bin/python -m scripts.acceptance --real-model --output runtime/acceptance-real.json`: 16/16 passed; application hash `24144a3571496f1affd5950e86f47cc9ba1d1be1598f3c6df1ee9599e76553a9` matches current source. Log: `runtime/verification/evaluation-contract-acceptance.log`.
+- `venv/bin/python -m evaluation.run --engine finbert --scope engineering --output runtime/verification/evaluation-contract-finbert.json`: passed provisional engineering gates; 11/12 heldout authored expectations matched in 6.275 s. Unknown cost remains null. The prior mismatch remains; no case labels/gates were changed.
+- OpenAPI generation passed with 25/29 V2 routes declaring response models. Frontend code unchanged since CP002 lint/build; browser interaction still unverified.
+
+Version hash scope now includes evaluation Python code; the corpus/gate versions retain separate hashes. Evaluation result validation reuses recorded outputs and deterministic preprocessing, without re-running model inference on API reads. Historical results whose artifacts are unknown fail validation instead of being silently interpreted using replacement gates. The v1 corpus and gate definitions are unchanged.
+
 ## Latest checks — frozen dataset integrity, 2026-10-29
 
 - `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: 73 passed in 38.479 s, no skips. Log: `runtime/verification/dataset-contract-tests.log`.

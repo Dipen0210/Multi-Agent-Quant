@@ -22,16 +22,16 @@ Checkpoint preparation also found that one baseline API test used the normal run
 
 ## Latest observed verification
 
-Environment: `docs/ENVIRONMENT.json`. CP003 frozen-dataset integrity increment:
+Environment: `docs/ENVIRONMENT.json`. CP004 evaluation-result integrity increment:
 
-- `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: 73 passed in 38.479 s, no skips. Log: `runtime/verification/dataset-contract-tests.log`.
-- `venv/bin/python -m scripts.acceptance --real-model --output runtime/acceptance-real.json`: 16/16 passed; backend hash `fc9beaf756593fc194719d6ab47bdd6b45772e421920578cc9986f339c3b68ee` matches current code.
-- Focused `test_dataset_contracts.py`: 5 passed in 0.452 s; existing historical experiment suite: 3 passed in 5.344 s. OpenAPI generation passed; 23/29 V2 routes have response schemas.
-- Frontend unchanged since CP002's successful lint/production build. Preview frontend/API returned HTTP 200 after the API refresh; external execution remains false. No visual interaction claim.
+- `RUN_REAL_MODEL=1 venv/bin/python -m unittest discover -s tests -v`: 79 passed in 38.244 s, no skips. Log: `runtime/verification/evaluation-contract-tests.log`.
+- `venv/bin/python -m scripts.acceptance --real-model --output runtime/acceptance-real.json`: all 16 checks passed. Current application hash: `24144a3571496f1affd5950e86f47cc9ba1d1be1598f3c6df1ee9599e76553a9`.
+- `venv/bin/python -m evaluation.run --engine finbert --scope engineering --output runtime/verification/evaluation-contract-finbert.json`: exit 0; 11/12 authored heldout cases matched, 6.275 s. This is actual local inference, not representative quality or human-reviewed ground truth.
+- Focused `test_evaluation_contracts.py`: 6 passed in 0.844 s. OpenAPI generated with 25/29 typed V2 routes. Frontend unchanged since CP002's successful lint/build; browser interaction unverified.
 
-Dataset reads now validate the manifest hash and unique references, relational membership, source content/envelope identity, and instrument/time/provenance scope. Damaged data cannot be admitted to an experiment. An idempotent freeze detects broken links instead of silently repairing them. Module isolation removes unused experiment imports while preserving existing import compatibility.
+Evaluation results now reconcile frozen expected labels/review state, exact case membership/source spans, recorded inference and deterministic preprocessing, class metrics, gate decisions and persisted study links. Hash-preserving serialization retains original timestamps/default omissions. Invalid output cannot be persisted as an accepted evaluation; job errors omit validation payloads. Recovery clears stale results/errors. Application hashing now includes evaluation Python code.
 
-CP001 is local commit `58f6b1c`; CP002 is local commit `efe2cec`; CP003 is being committed locally. Nothing has been pushed. Study/result and release-state contracts remain incomplete, along with broader phase gates below. See `docs/audits/API_CONTRACT_AUDIT.md`, `docs/EVALUATION_REPORT.md` and `docs/maintenance/CHECKPOINTS.md`.
+Local commits: CP001 `58f6b1c`, CP002 `efe2cec`, CP003 `90d488e`. CP004 is being committed locally. Nothing has been pushed. Experiment result contracts/shared study declarations, full release-evidence accounting and the broader phase gates below remain incomplete. See `docs/audits/API_CONTRACT_AUDIT.md` and `docs/maintenance/CHECKPOINTS.md`.
 
 ## Changes in this continuation
 
@@ -65,6 +65,6 @@ CP001 is local commit `58f6b1c`; CP002 is local commit `efe2cec`; CP003 is being
 
 The user asked why two semantic cases differ and supplied both notebooks. Neither response approves labels or release gates. Outstanding provenance is narrowed to data origin/rights, weights licensing, training split/checkpoint linkage and historical cutoff; do not ask again for the identified base model.
 
-Computer Use previously requested Accessibility/Screen Recording access. Do not retry without explicit authorization. User-supplied screenshots may support visual review; no screen permission is needed for code work. Preview services were started on 8001/3001, separate from existing 8000/3000. Backend was refreshed with CP003 code (session 11805); frontend session 98423. Dedicated preview database: `runtime/browser-demo.sqlite3`. Read-only HTTP checks passed. Inspect process identity and active jobs before any later preview restart. Automated acceptance uses isolated TestClient instances.
+Computer Use previously requested Accessibility/Screen Recording access. Do not retry without explicit authorization. User-supplied screenshots may support visual review; no screen permission is needed for code work. Preview services were started on 8001/3001, separate from existing 8000/3000. Backend was refreshed with CP004 code (session 66453); frontend session 98423. Dedicated preview database: `runtime/browser-demo.sqlite3`. Read-only HTTP checks passed. Inspect process identity and active jobs before any later preview restart. Automated acceptance uses isolated TestClient instances.
 
 No deployment, real orders, weight redistribution or remote CI success is claimed. Full goal stays active and incomplete while independent technical audit work continues.

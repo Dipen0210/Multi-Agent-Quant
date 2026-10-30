@@ -134,10 +134,15 @@ def run_suite(engine='baseline',split='heldout',inject_fault=None,cancelled=lamb
         'ground_truth_status':'provisional authored expectations; not human reviewed','created_at':now(),
         'limitations':['Synthetic diagnostic corpus is small and not representative of financial news.','No training/tuning performed on heldout cases.','Results do not establish multi-agent superiority or profitable trading.','Runtime varies by machine; model outputs may vary across library/hardware revisions.'],
         'injected_fault':inject_fault}
+    from evaluation.contracts import EvaluationResult
+    EvaluationResult.model_validate(report)
     return report
 
 
 def persist(store,report):
+    from evaluation.contracts import EvaluationResult
+    EvaluationResult.model_validate(report)
+    if report.get('id') is not None: raise ValueError('Persist requires an unpersisted evaluation result')
     ident=digest(report)
     with store.connect() as c:
         c.execute('INSERT OR IGNORE INTO evaluation_runs VALUES (?,?,?,?,?,?)',(ident,report['created_at'],report['dataset_hash'],

@@ -27,6 +27,7 @@ Detailed acceptance criteria and stable IDs remain in [REQUIREMENTS.md](../REQUI
 | Keep signal policy and accounting deterministic | Sentiment is not a calibrated return forecast or executable order. |
 | Verify frozen dataset membership before historical research | Dataset digests, linked source versions, instrument/time/provenance scope are checked on reads and admission; corruption blocks work. See [API contract audit](../audits/API_CONTRACT_AUDIT.md). |
 | Preserve unknown costs and explicit failure/partial states | Local compute is not priced; missing data and provider/model failures must remain visible. |
+| Reconcile evaluation scores before reporting a gate decision | Frozen case labels, source spans, recorded inference, metrics and database summaries are checked; provisional labels remain pending human review. |
 | Require full-release evidence separately from engineering checks | Provisional synthetic labels and passing tests cannot replace human grounding review. |
 
 ## Open items for the future PRD
